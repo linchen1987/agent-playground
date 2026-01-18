@@ -25,6 +25,11 @@ export function AppSidebar() {
             href: "/llms",
             icon: Bot,
         },
+        {
+            name: "Agents",
+            href: "/agents",
+            icon: Bot,
+        },
     ];
 
     return (
