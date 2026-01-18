@@ -1,5 +1,5 @@
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
-import { generateText } from 'ai';
+import { streamText } from 'ai';
 
 export async function POST(req: Request) {
   try {
@@ -20,25 +20,15 @@ export async function POST(req: Request) {
       baseURL: 'https://opencode.ai/zen/v1',
     });
 
-    const result = await generateText({
+    const result = await streamText({
       model: provider.chatModel(model),
       messages: messages,
       temperature: 0.7,
     });
 
-    console.log('Chat API response:', { 
-      textLength: result.text.length,
-      usage: result.usage
-    });
+    console.log('Chat API streaming started for model:', model);
 
-    return new Response(JSON.stringify({
-      text: result.text,
-      usage: result.usage,
-      finishReason: result.finishReason,
-      model: model,
-    }), {
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return result.toTextStreamResponse();
   } catch (error) {
     console.error('Chat API error:', error);
     return new Response(JSON.stringify({ 

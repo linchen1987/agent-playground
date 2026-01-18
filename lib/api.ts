@@ -83,3 +83,51 @@ export async function getFreeModels(): Promise<ModelsResponse> {
 
     return freeModels;
 }
+
+export interface StreamFetchOptions {
+    onData?: (chunk: string) => void;
+    onComplete?: () => void;
+    onError?: (error: Error) => void;
+}
+
+export async function streamFetch(
+    url: string,
+    params: RequestInit,
+    options: StreamFetchOptions = {}
+): Promise<void> {
+    try {
+        const response = await fetch(url, params);
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP error! status: ${response.status}, ${errorText}`);
+        }
+
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+
+        if (!reader) {
+            throw new Error('No response body');
+        }
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value, { stream: true });
+            if (options.onData) {
+                options.onData(chunk);
+            }
+        }
+
+        if (options.onComplete) {
+            options.onComplete();
+        }
+    } catch (error) {
+        if (options.onError) {
+            options.onError(error instanceof Error ? error : new Error('Unknown error'));
+        } else {
+            throw error;
+        }
+    }
+}

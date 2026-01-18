@@ -11,7 +11,7 @@ import {
 import { Check, ChevronsUpDown, Send, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
-import { getFreeModels, type ModelsResponse } from "@/lib/api";
+import { getFreeModels, streamFetch, type ModelsResponse } from "@/lib/api";
 import { toast } from "sonner";
 
 export default function LLMsPage() {
@@ -36,7 +36,10 @@ export default function LLMsPage() {
         setIsLoading(true);
 
         try {
-            const response = await fetch('/api/chat', {
+            let assistantMessage = { role: 'assistant' as const, content: '' };
+            setMessages(prev => [...prev, assistantMessage]);
+
+            await streamFetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -46,21 +49,23 @@ export default function LLMsPage() {
                         content: msg.content
                     }))
                 })
+            }, {
+                onData: (chunk) => {
+                    assistantMessage.content += chunk;
+                    setMessages(prev => {
+                        const newMessages = [...prev];
+                        newMessages[newMessages.length - 1] = assistantMessage;
+                        return newMessages;
+                    });
+                },
+                onComplete: () => {
+                    console.log('Stream completed');
+                },
+                onError: (error) => {
+                    console.error('Stream error:', error);
+                    toast.error('Failed to send message');
+                }
             });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('API Error Response:', errorText);
-            throw new Error(`Failed to send message: ${errorText}`);
-        }
-
-        const responseData = await response.json();
-            
-            setMessages(prev => [...prev, { 
-                role: 'assistant', 
-                content: responseData.text || 'No response content',
-                rawData: responseData
-            }]);
         } catch (error) {
             console.error('Error sending message:', error);
             toast.error('Failed to send message');
