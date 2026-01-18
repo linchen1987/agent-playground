@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Play, LayoutDashboard } from "lucide-react";
+import { Home, Bot, LayoutDashboard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -16,9 +16,14 @@ export function AppSidebar() {
             icon: Home,
         },
         {
-            name: "Playground",
-            href: "/playground",
-            icon: Play,
+            name: "Models",
+            href: "/models",
+            icon: Bot,
+        },
+        {
+            name: "LLMs",
+            href: "/llms",
+            icon: Bot,
         },
     ];
 

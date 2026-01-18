@@ -9,7 +9,7 @@ import dynamic from 'next/dynamic';
 
 const ReactJson = dynamic(() => import('react-json-view'), { ssr: false });
 
-export default function PlaygroundPage() {
+export default function ModelsPage() {
     const [models, setModels] = useState<ModelsResponse | null>(null);
     const [loading, setLoading] = useState(false);
 
@@ -45,7 +45,7 @@ export default function PlaygroundPage() {
         <div className="h-screen flex flex-col pl-4">
             <div className="container flex flex-col items-start justify-between space-y-2 py-4 sm:flex-row sm:items-center sm:space-y-0 md:h-16 flex-none">
                 <div className="flex items-center gap-4">
-                    <h2 className="text-lg font-semibold">Playground</h2>
+                    <h2 className="text-lg font-semibold">Models</h2>
                     <div className="flex gap-2">
                         <Button onClick={fetchModels} disabled={loading} variant="outline">
                             List All Models
