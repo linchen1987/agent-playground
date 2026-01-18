@@ -28,7 +28,7 @@ export default function Home() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-background text-foreground bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/20 via-background to-background relative">
+    <div className="flex flex-col items-center justify-center bg-background text-foreground bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/20 via-background to-background relative min-h-[calc(100vh-2rem)]">
       <div className="absolute top-4 right-4">
         <ModeToggle />
       </div>
