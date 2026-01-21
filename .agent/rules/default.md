@@ -8,3 +8,6 @@ spec:
 - js engine: nodejs
 - 前端页面 UI 不必自动测试。我来人工测试。
 - nextjs 中不要使用 server action, 使用 rest api
+
+agent:
+- 不要启动虚拟浏览器测试

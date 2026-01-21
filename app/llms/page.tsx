@@ -17,9 +17,10 @@ import { toast } from "sonner";
 export default function LLMsPage() {
     const [selectedModel, setSelectedModel] = useState<string>("big-pickle");
     const [freeModels, setFreeModels] = useState<string[]>([]);
+    const [thinkingSpeed, setThinkingSpeed] = useState<"disabled" | "fast" | "slow" | null>(null);
     const [loading, setLoading] = useState(false);
     const [input, setInput] = useState("");
-    const [messages, setMessages] = useState<Array<{role: 'user' | 'assistant', content: string, rawData?: any}>>([]);
+    const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant', content: string, rawData?: any }>>([]);
     const [isLoading, setIsLoading] = useState(false);
 
     const handleClearChat = () => {
@@ -44,6 +45,7 @@ export default function LLMsPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     model: selectedModel,
+                    thinking: thinkingSpeed ? { speed: thinkingSpeed === 'disabled' ? undefined : thinkingSpeed, type: thinkingSpeed === 'disabled' ? 'disabled' : undefined } : undefined,
                     messages: [...messages, userMessage].map(msg => ({
                         role: msg.role,
                         content: msg.content
@@ -95,66 +97,95 @@ export default function LLMsPage() {
     }, []);
 
     return (
-        <div className="h-screen flex flex-col pl-4">
-            <div className="container flex flex-col items-start justify-between space-y-2 py-4 sm:flex-row sm:items-center sm:space-y-0 md:h-16 flex-none">
+        <div className="h-screen flex flex-col">
+            <div className="container mx-auto px-4 flex flex-col items-start justify-between space-y-2 py-4 sm:flex-row sm:items-center sm:space-y-0 md:h-16 flex-none">
                 <h2 className="text-lg font-semibold">LLM Models</h2>
             </div>
             <Separator className="flex-none" />
-            <div className="container flex-1 py-6">
+            <div className="container mx-auto flex-1 py-6 px-4">
                 <div className="max-w-[1200px] space-y-8">
                     <div className="space-y-4">
-                        <h3 className="text-xl font-medium">Free Models (OpenCode)</h3>
-                        <p className="text-sm text-muted-foreground">
-                            Select a free model provided by OpenCode to start experimenting.
-                        </p>
-
                         <div className="flex flex-col gap-4 p-6 border rounded-lg bg-card text-card-foreground shadow-sm">
-                            <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                Model Selection
-                            </label>
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button
-                                        variant="outline"
-                                        role="combobox"
-                                        className="w-[300px] justify-between"
-                                    >
-                                        {selectedModel || (loading ? "Loading..." : "Select a model...")}
-                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent className="w-[300px] max-h-[300px] overflow-y-auto">
-                                    {freeModels.length > 0 ? (
-                                        freeModels.map((model) => (
-                                            <DropdownMenuItem
-                                                key={model}
-                                                onClick={() => setSelectedModel(model)}
-                                                className="cursor-pointer"
-                                            >
-                                                <Check
-                                                    className={cn(
-                                                        "mr-2 h-4 w-4",
-                                                        selectedModel === model
-                                                            ? "opacity-100"
-                                                            : "opacity-0"
-                                                    )}
-                                                />
-                                                {model}
-                                            </DropdownMenuItem>
-                                        ))
-                                    ) : (
-                                        <div className="p-2 text-sm text-muted-foreground text-center">
-                                            {loading ? "Loading models..." : "No free models found"}
-                                        </div>
-                                    )}
-                                </DropdownMenuContent>
-                            </DropdownMenu>
+                            <div className="flex items-center justify-between">
+                                <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                    Model
+                                </label>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            role="combobox"
+                                            className="w-[300px] justify-between"
+                                        >
+                                            {selectedModel || (loading ? "Loading..." : "Select a model...")}
+                                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent className="w-[300px] max-h-[300px] overflow-y-auto">
+                                        {freeModels.length > 0 ? (
+                                            freeModels.map((model) => (
+                                                <DropdownMenuItem
+                                                    key={model}
+                                                    onClick={() => setSelectedModel(model)}
+                                                    className="cursor-pointer"
+                                                >
+                                                    <Check
+                                                        className={cn(
+                                                            "mr-2 h-4 w-4",
+                                                            selectedModel === model
+                                                                ? "opacity-100"
+                                                                : "opacity-0"
+                                                        )}
+                                                    />
+                                                    {model}
+                                                </DropdownMenuItem>
+                                            ))
+                                        ) : (
+                                            <div className="p-2 text-sm text-muted-foreground text-center">
+                                                {loading ? "Loading models..." : "No free models found"}
+                                            </div>
+                                        )}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            </div>
 
-                            {selectedModel && (
-                                <div className="mt-4 p-4 rounded bg-muted/50 text-sm">
-                                    <span className="font-semibold">Selected:</span> {selectedModel}
-                                </div>
-                            )}
+                            <Separator />
+
+                            <div className="flex items-center justify-between">
+                                <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                    Thinking Speed
+                                </label>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            role="combobox"
+                                            className="w-[300px] justify-between"
+                                        >
+                                            {thinkingSpeed ? (thinkingSpeed.charAt(0).toUpperCase() + thinkingSpeed.slice(1)) : "Default (Auto)"}
+                                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent className="w-[300px]">
+                                        <DropdownMenuItem onClick={() => setThinkingSpeed(null)}>
+                                            <Check className={cn("mr-2 h-4 w-4", !thinkingSpeed ? "opacity-100" : "opacity-0")} />
+                                            Default (Auto)
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => setThinkingSpeed("fast")}>
+                                            <Check className={cn("mr-2 h-4 w-4", thinkingSpeed === "fast" ? "opacity-100" : "opacity-0")} />
+                                            Fast (Low Effort)
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => setThinkingSpeed("slow")}>
+                                            <Check className={cn("mr-2 h-4 w-4", thinkingSpeed === "slow" ? "opacity-100" : "opacity-0")} />
+                                            Slow (High Effort)
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => setThinkingSpeed("disabled")}>
+                                            <Check className={cn("mr-2 h-4 w-4", thinkingSpeed === "disabled" ? "opacity-100" : "opacity-0")} />
+                                            Disabled
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            </div>
                         </div>
                     </div>
 
@@ -163,9 +194,9 @@ export default function LLMsPage() {
                             <div className="flex items-center justify-between">
                                 <h3 className="text-xl font-medium">Chat</h3>
                                 {messages.length > 0 && (
-                                    <Button 
-                                        variant="outline" 
-                                        size="sm" 
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
                                         onClick={handleClearChat}
                                         className="flex items-center gap-2"
                                     >
@@ -174,7 +205,7 @@ export default function LLMsPage() {
                                     </Button>
                                 )}
                             </div>
-                            
+
                             <div className="border rounded-lg bg-card text-card-foreground shadow-sm">
                                 <div className="h-96 overflow-y-auto p-4 space-y-4">
                                     {messages.length === 0 ? (
@@ -213,7 +244,7 @@ export default function LLMsPage() {
                                         </div>
                                     )}
                                 </div>
-                                
+
                                 <div className="border-t p-4">
                                     <div className="flex gap-2">
                                         <input
@@ -225,8 +256,8 @@ export default function LLMsPage() {
                                             className="flex-1 px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                                             disabled={isLoading}
                                         />
-                                        <Button 
-                                            onClick={handleSendMessage} 
+                                        <Button
+                                            onClick={handleSendMessage}
                                             disabled={!input.trim() || isLoading}
                                             size="sm"
                                         >
