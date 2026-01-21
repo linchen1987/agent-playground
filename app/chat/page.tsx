@@ -13,11 +13,11 @@ import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { getFreeModels, streamFetch, type ModelsResponse, type StreamChunk } from "@/lib/api";
 import { toast } from "sonner";
+import useChatConfig from "@/lib/use-chat-config";
 
 export default function LLMsPage() {
-    const [selectedModel, setSelectedModel] = useState<string>("big-pickle");
+    const { selectedModel, setSelectedModel, thinkingSpeed, setThinkingSpeed } = useChatConfig();
     const [freeModels, setFreeModels] = useState<string[]>([]);
-    const [thinkingSpeed, setThinkingSpeed] = useState<"disabled" | "fast" | "slow" | null>(null);
     const [loading, setLoading] = useState(false);
     const [input, setInput] = useState("");
     const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant', content: string, reasoning?: string, rawData?: any }>>([]);
@@ -114,7 +114,7 @@ export default function LLMsPage() {
 
         fetchModels();
     }, []);
-
+    
     return (
         <div className="h-screen flex flex-col">
             <div className="container mx-auto px-4 flex flex-col items-start justify-between space-y-2 py-4 sm:flex-row sm:items-center sm:space-y-0 md:h-16 flex-none">
@@ -135,6 +135,7 @@ export default function LLMsPage() {
                                             variant="outline"
                                             role="combobox"
                                             className="w-[300px] justify-between"
+                                            suppressHydrationWarning
                                         >
                                             {selectedModel || (loading ? "Loading..." : "Select a model...")}
                                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -180,6 +181,7 @@ export default function LLMsPage() {
                                             variant="outline"
                                             role="combobox"
                                             className="w-[300px] justify-between"
+                                            suppressHydrationWarning
                                         >
                                             {thinkingSpeed ? (thinkingSpeed.charAt(0).toUpperCase() + thinkingSpeed.slice(1)) : "Default (Auto)"}
                                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -228,7 +230,7 @@ export default function LLMsPage() {
                             <div className="border rounded-lg bg-card text-card-foreground shadow-sm">
                                 <div className="h-96 overflow-y-auto p-4 space-y-4">
                                     {messages.length === 0 ? (
-                                        <div className="text-center text-muted-foreground py-8">
+                                        <div className="text-center text-muted-foreground py-8" suppressHydrationWarning>
                                             Start a conversation with {selectedModel}
                                         </div>
                                     ) : (
@@ -249,7 +251,7 @@ export default function LLMsPage() {
                                                     )}
                                                 </div>
                                                 <div className="flex-1 overflow-hidden">
-                                                    <div className="font-medium text-xs mb-1 opacity-50">
+                                                    <div className="font-medium text-xs mb-1 opacity-50" suppressHydrationWarning>
                                                         {message.role === 'user' ? 'You' : selectedModel}
                                                     </div>
                                                     <div className="whitespace-pre-wrap text-sm">
