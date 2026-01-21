@@ -20,27 +20,29 @@ export async function POST(req: Request) {
       baseURL: 'https://opencode.ai/zen/v1',
     });
 
-    // Map "thinking" config to provider-specific options
-    // Assuming "reasoning_effort" is the parameter for OpenAI-compatible providers that support it
+    // reasoning_effort: none, minimal, low, medium, high, xhigh
     let providerOptions: any = {};
 
     if (thinking) {
       if (thinking.type === 'disabled') {
-        // If the model supports disabling thinking via a specific param, add it here.
-        // For now, we might just set effort to low or omit it if that's the default.
-        providerOptions.reasoning_effort = 'low';
+        providerOptions.reasoningEffort = 'none';
       } else if (thinking.speed === 'fast') {
-        providerOptions.reasoning_effort = 'low';
+        providerOptions.reasoningEffort = 'minimal';
+        // providerOptions.reasoningEffort = 'low';
       } else if (thinking.speed === 'slow') {
-        providerOptions.reasoning_effort = 'high';
+        providerOptions.reasoningEffort = 'high';
       }
     }
+
+    console.log('providerOptions: ', providerOptions);
 
     const result = await streamText({
       model: provider.chatModel(model),
       messages: messages,
       temperature: 0.7,
-      ...providerOptions,
+      providerOptions: {
+        openai: providerOptions,
+      },
     });
 
     console.log('result of streamText:', result);
@@ -49,7 +51,7 @@ export async function POST(req: Request) {
       async start(controller) {
         try {
           for await (const part of result.fullStream) {
-            console.log('part: ', part)
+            // console.log('part: ', part)
             if (part.type === 'text-delta') {
               const data = JSON.stringify({ type: 'text', content: part.text });
               controller.enqueue(new TextEncoder().encode(data + '\n'));
