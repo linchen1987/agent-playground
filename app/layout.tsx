@@ -18,8 +18,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Create Web App",
-  description: "Create Web App with template",
+  title: "AI Playground",
+  description: "A modern AI playground for experimenting with artificial intelligence",
+  icons: {
+    icon: '/icon.svg',
+    shortcut: '/icon.svg',
+    apple: '/icon.svg',
+  },
 };
 
 export default function RootLayout({
