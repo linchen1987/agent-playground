@@ -6,6 +6,7 @@ import { Home, Bot, LayoutDashboard, ChevronsLeft, ChevronsRight } from "lucide-
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useSidebar } from "@/components/sidebar-provider";
+import { ModeToggle } from "@/components/mode-toggle";
 
 export function AppSidebar() {
     const pathname = usePathname();
@@ -18,13 +19,13 @@ export function AppSidebar() {
             icon: Home,
         },
         {
-            name: "Models",
-            href: "/models",
+            name: "Chat",
+            href: "/chat",
             icon: Bot,
         },
         {
-            name: "Chat",
-            href: "/chat",
+            name: "Models",
+            href: "/models",
             icon: Bot,
         },
         {
@@ -79,10 +80,15 @@ export function AppSidebar() {
                 </nav>
             </div>
 
-            <div className="mt-auto p-4 border-t flex justify-end">
-                <Button variant="ghost" size="icon" onClick={toggleSidebar} className="ml-auto">
-                    {isCollapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
-                </Button>
+            <div className="mt-auto p-4 border-t">
+                <div className="flex justify-center mb-4">
+                    <ModeToggle />
+                </div>
+                <div className="flex justify-end">
+                    <Button variant="ghost" size="icon" onClick={toggleSidebar}>
+                        {isCollapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
+                    </Button>
+                </div>
             </div>
         </div>
     );
