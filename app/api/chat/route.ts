@@ -43,9 +43,39 @@ export async function POST(req: Request) {
       ...providerOptions,
     });
 
-    console.log('Chat API streaming started for model:', model);
+    console.log('result of streamText:', result);
 
-    return result.toTextStreamResponse();
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const part of result.fullStream) {
+            console.log('part: ', part)
+            if (part.type === 'text-delta') {
+              const data = JSON.stringify({ type: 'text', content: part.text });
+              controller.enqueue(new TextEncoder().encode(data + '\n'));
+            } else if (part.type === 'reasoning-delta') {
+              const data = JSON.stringify({ type: 'reasoning', content: part.text });
+              controller.enqueue(new TextEncoder().encode(data + '\n'));
+            } else if (part.type === 'error') {
+              const errorData = JSON.stringify({ type: 'error', message: part.error instanceof Error ? part.error.message : 'Unknown streaming error' });
+              controller.enqueue(new TextEncoder().encode(errorData + '\n'));
+            }
+          }
+          controller.close();
+        } catch (error) {
+          const errorData = JSON.stringify({ type: 'error', message: error instanceof Error ? error.message : 'Unknown streaming error' });
+          controller.enqueue(new TextEncoder().encode(errorData + '\n'));
+          controller.close();
+        }
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Transfer-Encoding': 'chunked',
+      }
+    });
   } catch (error) {
     console.error('Chat API error:', error);
     return new Response(JSON.stringify({

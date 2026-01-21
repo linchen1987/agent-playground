@@ -23,8 +23,8 @@ export function AppSidebar() {
             icon: Bot,
         },
         {
-            name: "LLMs",
-            href: "/llms",
+            name: "Chat",
+            href: "/chat",
             icon: Bot,
         },
         {

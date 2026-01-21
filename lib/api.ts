@@ -84,6 +84,11 @@ export async function getFreeModels(): Promise<ModelsResponse> {
     return freeModels;
 }
 
+export type StreamChunk =
+    | { type: 'text'; content: string }
+    | { type: 'reasoning'; content: string }
+    | { type: 'error'; message: string };
+
 export interface StreamFetchOptions {
     onData?: (chunk: string) => void;
     onComplete?: () => void;
@@ -115,6 +120,7 @@ export async function streamFetch(
             if (done) break;
 
             const chunk = decoder.decode(value, { stream: true });
+            console.log('reader data chunk', chunk);
             if (options.onData) {
                 options.onData(chunk);
             }

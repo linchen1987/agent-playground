@@ -8,10 +8,10 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Check, ChevronsUpDown, Send, Trash2 } from "lucide-react";
+import { Check, ChevronsUpDown, Send, Trash2, Bot, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
-import { getFreeModels, streamFetch, type ModelsResponse } from "@/lib/api";
+import { getFreeModels, streamFetch, type ModelsResponse, type StreamChunk } from "@/lib/api";
 import { toast } from "sonner";
 
 export default function LLMsPage() {
@@ -20,7 +20,7 @@ export default function LLMsPage() {
     const [thinkingSpeed, setThinkingSpeed] = useState<"disabled" | "fast" | "slow" | null>(null);
     const [loading, setLoading] = useState(false);
     const [input, setInput] = useState("");
-    const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant', content: string, rawData?: any }>>([]);
+    const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant', content: string, reasoning?: string, rawData?: any }>>([]);
     const [isLoading, setIsLoading] = useState(false);
 
     const handleClearChat = () => {
@@ -37,7 +37,7 @@ export default function LLMsPage() {
         setIsLoading(true);
 
         try {
-            let assistantMessage = { role: 'assistant' as const, content: '' };
+            let assistantMessage: { role: 'assistant', content: string, reasoning?: string } = { role: 'assistant', content: '' };
             setMessages(prev => [...prev, assistantMessage]);
 
             await streamFetch('/api/chat', {
@@ -53,12 +53,31 @@ export default function LLMsPage() {
                 })
             }, {
                 onData: (chunk) => {
-                    assistantMessage.content += chunk;
-                    setMessages(prev => {
-                        const newMessages = [...prev];
-                        newMessages[newMessages.length - 1] = assistantMessage;
-                        return newMessages;
-                    });
+                    const lines = chunk.split('\n').filter(line => line.trim() !== '');
+                    for (const line of lines) {
+                        try {
+                            const data = JSON.parse(line) as StreamChunk;
+                            if (data.type === 'text') {
+                                assistantMessage.content += data.content;
+                                setMessages(prev => {
+                                    const newMessages = [...prev];
+                                    newMessages[newMessages.length - 1] = { ...assistantMessage };
+                                    return newMessages;
+                                });
+                            } else if (data.type === 'reasoning') {
+                                assistantMessage.reasoning = (assistantMessage.reasoning || '') + data.content;
+                                setMessages(prev => {
+                                    const newMessages = [...prev];
+                                    newMessages[newMessages.length - 1] = { ...assistantMessage };
+                                    return newMessages;
+                                });
+                            } else if (data.type === 'error') {
+                                toast.error(data.message);
+                            }
+                        } catch (e) {
+                            console.error('Failed to parse stream chunk:', line, e);
+                        }
+                    }
                 },
                 onComplete: () => {
                     console.log('Stream completed');
@@ -215,33 +234,58 @@ export default function LLMsPage() {
                                     ) : (
                                         messages.map((message, index) => (
                                             <div key={index} className={cn(
-                                                "p-3 rounded-lg",
-                                                message.role === 'user' ? "bg-primary/10 ml-8" : "bg-secondary/10 mr-8"
+                                                "p-3 rounded-lg flex gap-3",
+                                                message.role === 'user' ? "flex-row-reverse bg-primary/10 ml-auto w-fit max-w-[80%]" : "bg-secondary/10 mr-8"
                                             )}>
-                                                <div className="font-medium text-sm mb-2">
-                                                    {message.role === 'user' ? 'You' : selectedModel}
+                                                <div className="flex-none mt-1">
+                                                    {message.role === 'user' ? (
+                                                        <div className="bg-primary h-8 w-8 rounded-full flex items-center justify-center text-primary-foreground">
+                                                            <User className="h-5 w-5" />
+                                                        </div>
+                                                    ) : (
+                                                        <div className="bg-muted h-8 w-8 rounded-full flex items-center justify-center text-secondary-foreground border">
+                                                            <Bot className="h-5 w-5" />
+                                                        </div>
+                                                    )}
                                                 </div>
-                                                <div className="whitespace-pre-wrap text-sm">
-                                                    {message.content}
+                                                <div className="flex-1 overflow-hidden">
+                                                    <div className="font-medium text-xs mb-1 opacity-50">
+                                                        {message.role === 'user' ? 'You' : selectedModel}
+                                                    </div>
+                                                    <div className="whitespace-pre-wrap text-sm">
+                                                        {message.role === 'assistant' && message.reasoning && (
+                                                            <details open className="mb-2 text-xs text-muted-foreground border-l-2 pl-2 border-primary/20">
+                                                                <summary className="cursor-pointer hover:text-foreground font-medium">
+                                                                    Thinking Process
+                                                                </summary>
+                                                                <div className="mt-1 whitespace-pre-wrap">
+                                                                    {message.reasoning}
+                                                                </div>
+                                                            </details>
+                                                        )}
+                                                        {/* Loading Skeleton Logic */}
+                                                        {message.role === 'assistant' && !message.content && !message.reasoning && isLoading && index === messages.length - 1 ? (
+                                                            <div className="space-y-2 animate-pulse">
+                                                                <div className="h-4 bg-muted rounded w-3/4"></div>
+                                                                <div className="h-4 bg-muted rounded w-1/2"></div>
+                                                            </div>
+                                                        ) : (
+                                                            message.content
+                                                        )}
+                                                    </div>
+                                                    {message.rawData && (
+                                                        <details className="mt-3 text-xs">
+                                                            <summary className="cursor-pointer font-mono bg-muted p-2 rounded">
+                                                                Raw JSON Response
+                                                            </summary>
+                                                            <pre className="mt-2 p-2 bg-muted/50 rounded overflow-x-auto">
+                                                                {JSON.stringify(message.rawData, null, 2)}
+                                                            </pre>
+                                                        </details>
+                                                    )}
                                                 </div>
-                                                {message.rawData && (
-                                                    <details className="mt-3 text-xs">
-                                                        <summary className="cursor-pointer font-mono bg-muted p-2 rounded">
-                                                            Raw JSON Response
-                                                        </summary>
-                                                        <pre className="mt-2 p-2 bg-muted/50 rounded overflow-x-auto">
-                                                            {JSON.stringify(message.rawData, null, 2)}
-                                                        </pre>
-                                                    </details>
-                                                )}
                                             </div>
                                         ))
-                                    )}
-                                    {isLoading && (
-                                        <div className="bg-secondary/10 mr-8 p-3 rounded-lg">
-                                            <div className="font-medium text-sm mb-2">{selectedModel}</div>
-                                            <div className="text-sm text-muted-foreground">Thinking...</div>
-                                        </div>
                                     )}
                                 </div>
 
