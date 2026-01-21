@@ -20,7 +20,7 @@ export default function LLMsPage() {
     const [freeModels, setFreeModels] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
     const [input, setInput] = useState("");
-    const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant', content: string, reasoning?: string, rawData?: any }>>([]);
+    const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant' | 'error', content: string, reasoning?: string, rawData?: any, errorType?: string }>>([]);
     const [isLoading, setIsLoading] = useState(false);
 
     const handleClearChat = () => {
@@ -73,6 +73,12 @@ export default function LLMsPage() {
                                 });
                             } else if (data.type === 'error') {
                                 toast.error(data.message);
+                                const errorMessage = { 
+                                    role: 'error' as const, 
+                                    content: data.message,
+                                    errorType: data.type
+                                };
+                                setMessages(prev => [...prev, errorMessage]);
                             }
                         } catch (e) {
                             console.error('Failed to parse stream chunk:', line, e);
@@ -234,25 +240,33 @@ export default function LLMsPage() {
                                             Start a conversation with {selectedModel}
                                         </div>
                                     ) : (
-                                        messages.map((message, index) => (
-                                            <div key={index} className={cn(
-                                                "p-3 rounded-lg flex gap-3",
-                                                message.role === 'user' ? "flex-row-reverse bg-primary/10 ml-auto w-fit max-w-[80%]" : "bg-secondary/10 mr-8"
-                                            )}>
-                                                <div className="flex-none mt-1">
-                                                    {message.role === 'user' ? (
-                                                        <div className="bg-primary h-8 w-8 rounded-full flex items-center justify-center text-primary-foreground">
-                                                            <User className="h-5 w-5" />
-                                                        </div>
-                                                    ) : (
-                                                        <div className="bg-muted h-8 w-8 rounded-full flex items-center justify-center text-secondary-foreground border">
-                                                            <Bot className="h-5 w-5" />
-                                                        </div>
-                                                    )}
-                                                </div>
+                                         messages.map((message, index) => (
+                                             <div key={index} className={cn(
+                                                 "p-3 rounded-lg flex gap-3",
+                                                 message.role === 'user' ? "flex-row-reverse bg-primary/10 ml-auto w-fit max-w-[80%]" : 
+                                                 message.role === 'error' ? "bg-destructive/10 mr-auto ml-8" :
+                                                 "bg-secondary/10 mr-8"
+                                             )}>
+                                                 <div className="flex-none mt-1">
+                                                     {message.role === 'user' ? (
+                                                         <div className="bg-primary h-8 w-8 rounded-full flex items-center justify-center text-primary-foreground">
+                                                             <User className="h-5 w-5" />
+                                                         </div>
+                                                     ) : message.role === 'error' ? (
+                                                         <div className="bg-destructive h-8 w-8 rounded-full flex items-center justify-center text-destructive-foreground">
+                                                             <Trash2 className="h-5 w-5" />
+                                                         </div>
+                                                     ) : (
+                                                         <div className="bg-muted h-8 w-8 rounded-full flex items-center justify-center text-secondary-foreground border">
+                                                             <Bot className="h-5 w-5" />
+                                                         </div>
+                                                     )}
+                                                 </div>
                                                 <div className="flex-1 overflow-hidden">
                                                     <div className="font-medium text-xs mb-1 opacity-50" suppressHydrationWarning>
-                                                        {message.role === 'user' ? 'You' : selectedModel}
+                                                        {message.role === 'user' ? 'You' : 
+                                                         message.role === 'error' ? `Error (${message.errorType})` : 
+                                                         selectedModel}
                                                     </div>
                                                     <div className="whitespace-pre-wrap text-sm">
                                                         {message.role === 'assistant' && message.reasoning && (
@@ -272,7 +286,9 @@ export default function LLMsPage() {
                                                                 <div className="h-4 bg-muted rounded w-1/2"></div>
                                                             </div>
                                                         ) : (
-                                                            message.content
+                                                            <div className={message.role === 'error' ? 'text-destructive' : ''}>
+                                                                {message.content}
+                                                            </div>
                                                         )}
                                                     </div>
                                                     {message.rawData && (
