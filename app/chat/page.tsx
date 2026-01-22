@@ -25,8 +25,11 @@ import {
   Sparkles,
   Loader2,
   ChevronDown,
+  ChevronRight,
   Check,
 } from 'lucide-react';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 interface Message {
   id: string;
@@ -34,6 +37,7 @@ interface Message {
   content: string;
   reasoning?: string;
   timestamp: number;
+  rawData?: Array<Record<string, unknown>>;
 }
 
 export default function ChatPage() {
@@ -49,6 +53,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [thinkingSpeed, setThinkingSpeed] = useState<string>('fast');
+  const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
 
   const isReady = Boolean(selectedProviderId && selectedModelId);
 
@@ -120,6 +125,8 @@ export default function ChatPage() {
                   break;
               }
 
+              updated.rawData = [...(last.rawData || []), chunk];
+
               return [...prev.slice(0, -1), updated];
             });
           },
@@ -157,7 +164,20 @@ export default function ChatPage() {
 
   const handleClearChat = () => {
     setMessages([]);
+    setExpandedMessages(new Set());
     toast.success('Chat cleared');
+  };
+
+  const toggleRawData = (messageId: string) => {
+    setExpandedMessages((prev) => {
+      const next = new Set(prev);
+      if (next.has(messageId)) {
+        next.delete(messageId);
+      } else {
+        next.add(messageId);
+      }
+      return next;
+    });
   };
 
   return (
@@ -267,21 +287,66 @@ export default function ChatPage() {
                         </details>
                       )}
 
-                      <div
-                        className={`inline-block max-w-[85%] rounded-lg px-4 py-2.5 text-base leading-relaxed ${
-                          message.role === 'user'
-                            ? 'bg-primary/10 text-foreground'
-                            : message.role === 'error'
-                            ? 'bg-destructive/10 text-destructive'
-                            : 'bg-muted/50 text-foreground'
-                        }`}
-                      >
+                      <div className={`inline-block max-w-[85%] rounded-lg px-4 py-2.5 text-base leading-relaxed ${
+                        message.role === 'user'
+                          ? 'bg-primary/10 text-foreground'
+                          : message.role === 'error'
+                          ? 'bg-destructive/10 text-destructive'
+                          : 'bg-muted/50 text-foreground'
+                      }`}>
                         {message.content || (
                           <span className="text-muted-foreground/50 italic">
                             ...
                           </span>
                         )}
                       </div>
+
+                      {message.role === 'assistant' && message.rawData && message.rawData.length > 0 && (
+                        <button
+                          onClick={() => toggleRawData(message.id)}
+                          className="mt-1 text-xs text-muted-foreground/50 hover:text-muted-foreground flex items-center gap-1"
+                        >
+                          {expandedMessages.has(message.id) ? (
+                            <>
+                              <ChevronDown className="h-3 w-3" />
+                              Hide raw data
+                            </>
+                          ) : (
+                            <>
+                              <ChevronRight className="h-3 w-3" />
+                              Show raw data
+                            </>
+                          )}
+                        </button>
+                      )}
+
+                      {expandedMessages.has(message.id) && message.rawData && (
+                        <div className="max-w-[85%] mt-2 rounded-md border border-muted/50 overflow-hidden">
+                          <SyntaxHighlighter
+                            language="json"
+                            style={vscDarkPlus}
+                            customStyle={{
+                              margin: 0,
+                              padding: '1rem',
+                              fontSize: '12px',
+                              lineHeight: '1.5',
+                              backgroundColor: 'rgba(0,0,0,0.2)',
+                              wordBreak: 'break-all',
+                              whiteSpace: 'pre-wrap',
+                              maxWidth: '100%',
+                            }}
+                            codeTagProps={{
+                              style: {
+                                wordBreak: 'break-all',
+                                whiteSpace: 'pre-wrap',
+                              }
+                            }}
+                            wrapLongLines={true}
+                          >
+                            {JSON.stringify(message.rawData, null, 2)}
+                          </SyntaxHighlighter>
+                        </div>
+                      )}
                     </div>
                   </div>
                   ))}

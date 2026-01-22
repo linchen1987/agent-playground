@@ -54,7 +54,7 @@ function getProviderThinkingOptions(thinking: ChatRequest['thinking']) {
   return options;
 }
 
-function transformStreamPart(part: { type: string; [key: string]: unknown }): StreamChunk | null {
+function transformStreamPart(part: { type: string; [key: string]: unknown }): StreamChunk | Record<string, unknown> {
   switch (part.type) {
     case 'text-delta':
       return { type: 'text', content: part.text as string };
@@ -86,7 +86,7 @@ function transformStreamPart(part: { type: string; [key: string]: unknown }): St
       return { type: 'done' };
 
     default:
-      return null;
+      return part as Record<string, unknown>;
   }
 }
 
