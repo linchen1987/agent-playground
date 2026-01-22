@@ -81,7 +81,7 @@ export function AppSidebar() {
             </div>
 
             <div className="mt-auto p-4 border-t">
-                <div className="flex justify-center mb-4">
+                <div className={cn("flex mb-4", isCollapsed ? "justify-center" : "justify-end")}>
                     <ModeToggle />
                 </div>
                 <div className="flex justify-end">

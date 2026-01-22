@@ -13,6 +13,7 @@ import { ProviderModelSelect } from '@/components/provider-model-select';
 import { streamChat, type StreamChunk } from '@/lib/api';
 import useProviderSettings from '@/lib/use-provider-settings';
 import useModelSelection from '@/lib/use-model-selection';
+import { PUBLIC_API_KEY } from '@/lib/static-config';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import {
@@ -69,7 +70,7 @@ export default function ChatPage() {
 
     try {
       const providerSetting = getProviderSetting(selectedProviderId);
-      const apiKey = providerSetting.apiKey || 'public';
+      const apiKey = providerSetting.apiKey || PUBLIC_API_KEY;
 
       const assistantMessage: Message = {
         id: crypto.randomUUID(),

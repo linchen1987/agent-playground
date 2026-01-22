@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { ChevronDown, Check, AlertCircle, Brain, Wrench, FileJson } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import useProviderSettings from '@/lib/use-provider-settings';
-import { STATIC_CONFIG, isModelAvailable, isModelFree } from '@/lib/static-config';
+import { STATIC_CONFIG, isModelFree } from '@/lib/static-config';
 import type { Model } from '@/lib/types';
 
 interface ModelSelectItem {
@@ -20,6 +20,8 @@ interface ModelSelectItem {
   modelId: string;
   modelName: string;
   model: Model;
+  disabled: boolean;
+  disabledReason?: string;
 }
 
 interface ProviderModelSelectProps {
@@ -41,16 +43,21 @@ export function ProviderModelSelect({
     for (const [providerId, provider] of Object.entries(STATIC_CONFIG)) {
       if (!settings[providerId]?.enabled) continue;
 
+      const providerSetting = settings[providerId];
+      const hasApiKey = Boolean(providerSetting.apiKey);
+
       for (const [modelId, model] of Object.entries(provider.models)) {
-        if (isModelAvailable(providerId, modelId, settings)) {
-          items.push({
-            providerId,
-            providerName: provider.name,
-            modelId,
-            modelName: model.name,
-            model,
-          });
-        }
+        const free = isModelFree(model);
+        const disabled = !free && !hasApiKey;
+        items.push({
+          providerId,
+          providerName: provider.name,
+          modelId,
+          modelName: model.name,
+          model,
+          disabled,
+          disabledReason: disabled ? 'API key required' : undefined,
+        });
       }
     }
 
@@ -62,14 +69,18 @@ export function ProviderModelSelect({
     const provider = STATIC_CONFIG[selectedProviderId];
     const model = provider?.models[selectedModelId];
     if (!model) return null;
+    const providerSetting = settings[selectedProviderId];
+    const hasApiKey = Boolean(providerSetting?.apiKey);
+    const free = isModelFree(model);
     return {
       providerId: selectedProviderId,
       providerName: provider.name,
       modelId: selectedModelId,
       modelName: model.name,
       model,
+      disabled: !free && !hasApiKey,
     };
-  }, [selectedProviderId, selectedModelId]);
+  }, [selectedProviderId, selectedModelId, settings]);
 
   const selectedValue = selectedProviderId && selectedModelId
     ? `${selectedProviderId}/${selectedModelId}`
@@ -99,8 +110,12 @@ export function ProviderModelSelect({
             {availableModels.map((item) => (
               <DropdownMenuItem
                 key={`${item.providerId}/${item.modelId}`}
-                onClick={() => handleValueChange(item.providerId, item.modelId)}
-                className="cursor-pointer"
+                onClick={() => !item.disabled && handleValueChange(item.providerId, item.modelId)}
+                disabled={item.disabled}
+                className={cn(
+                  "cursor-pointer",
+                  item.disabled && "opacity-50 cursor-not-allowed"
+                )}
               >
                 <Check
                   className={cn(
@@ -113,6 +128,16 @@ export function ProviderModelSelect({
                 <span className="text-muted-foreground">{item.providerName}</span>
                 <span className="mx-1">/</span>
                 <span>{item.modelName}</span>
+                {isModelFree(item.model) && (
+                  <span className="ml-2 text-xs bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">
+                    Free
+                  </span>
+                )}
+                {item.disabled && item.disabledReason && (
+                  <span className="ml-auto text-xs text-amber-600">
+                    {item.disabledReason}
+                  </span>
+                )}
               </DropdownMenuItem>
             ))}
             {availableModels.length === 0 && (

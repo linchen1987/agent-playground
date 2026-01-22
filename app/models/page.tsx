@@ -13,6 +13,44 @@ import type { ModelsResponse } from "@/lib/types";
 
 const ReactJson = dynamic(() => import('react-json-view'), { ssr: false });
 
+interface ThemeObject {
+    base00: string;
+    base01: string;
+    base02: string;
+    base03: string;
+    base04: string;
+    base05: string;
+    base06: string;
+    base07: string;
+    base08: string;
+    base09: string;
+    base0A: string;
+    base0B: string;
+    base0C: string;
+    base0D: string;
+    base0E: string;
+    base0F: string;
+}
+
+const darkTheme: ThemeObject = {
+    base00: 'transparent',
+    base01: '#1e1e1e',
+    base02: '#2d2d2d',
+    base03: '#7f8490',
+    base04: '#b0b0b0',
+    base05: '#d4d4d4',
+    base06: '#e8e8e8',
+    base07: '#f5f5f5',
+    base08: '#f97583',
+    base09: '#ffab70',
+    base0A: '#ffdc9a',
+    base0B: '#a6e3a1',
+    base0C: '#89dceb',
+    base0D: '#89b4fa',
+    base0E: '#cba6f7',
+    base0F: '#f5c2e7',
+};
+
 type FilterType = "all" | "free";
 
 export default function ModelsPage() {
@@ -102,7 +140,7 @@ export default function ModelsPage() {
                                 {localDisplayModels ? (
                                     <ReactJson
                                         src={localDisplayModels}
-                                        theme="rjv-default"
+                                        theme={darkTheme}
                                         displayDataTypes={false}
                                         collapsed={2}
                                         enableClipboard={true}
@@ -159,7 +197,7 @@ export default function ModelsPage() {
                                 {remoteDisplayModels ? (
                                     <ReactJson
                                         src={remoteDisplayModels}
-                                        theme="rjv-default"
+                                        theme={darkTheme}
                                         displayDataTypes={false}
                                         collapsed={1}
                                         enableClipboard={true}

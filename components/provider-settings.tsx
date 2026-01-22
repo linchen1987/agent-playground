@@ -3,7 +3,7 @@
 import { Input } from '@/components/ui/input';
 import { Lock, Unlock, ExternalLink } from 'lucide-react';
 import useProviderSettings from '@/lib/use-provider-settings';
-import { STATIC_PROVIDERS, STATIC_CONFIG, isModelFree } from '@/lib/static-config';
+import { STATIC_PROVIDERS, STATIC_CONFIG, isModelFree, isAllModelsFree, PUBLIC_API_KEY } from '@/lib/static-config';
 
 export function ProviderSettings() {
   const { settings, updateProviderSetting, getProviderSetting } = useProviderSettings();
@@ -22,6 +22,9 @@ export function ProviderSettings() {
         {STATIC_PROVIDERS.map((provider) => {
           const setting = getProviderSetting(provider.id);
           const providerConfig = STATIC_CONFIG[provider.id];
+          const hasAllFreeModels = providerConfig
+            ? isAllModelsFree(provider.id)
+            : false;
           const hasFreeModels = providerConfig
             ? Object.values(providerConfig.models).some(isModelFree)
             : false;
@@ -88,20 +91,20 @@ export function ProviderSettings() {
                       )
                     }
                     placeholder={
-                      hasFreeModels
-                        ? "Uses 'public' key for free models"
+                      hasAllFreeModels
+                        ? `Uses '${PUBLIC_API_KEY}' key for free models`
                         : `Enter ${provider.name} API key...`
                     }
-                    disabled={!setting.enabled || hasFreeModels}
+                    disabled={!setting.enabled || hasAllFreeModels}
                   />
-                  {hasFreeModels && (
+                  {hasAllFreeModels && (
                     <p className="text-xs text-green-600">
-                      Free models available - API key not required
+                      All models are free - API key not required
                     </p>
                   )}
-                  {!hasFreeModels && setting.enabled && !setting.apiKey && (
+                  {!hasAllFreeModels && setting.enabled && !setting.apiKey && (
                     <p className="text-xs text-amber-600">
-                      API key is required for this provider
+                      API key is required for paid models
                     </p>
                   )}
                 </div>

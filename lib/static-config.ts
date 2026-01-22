@@ -181,19 +181,56 @@ export const STATIC_MODELS: Record<string, Record<string, Model>> = {
     },
   },
   xai: {
-    'grok-2-1212': {
-      id: 'grok-2-1212',
-      name: 'Grok-2 1212',
-      family: 'grok-2',
-      attachment: false,
+    'grok-4-1-fast': {
+      id: 'grok-4-1-fast',
+      name: 'Grok 4.1 Fast',
+      family: 'grok',
+      attachment: true,
+      reasoning: true,
+      tool_call: true,
+      structured_output: true,
+      temperature: true,
+      knowledge: '2025-07',
+      release_date: '2025-11-19',
+      last_updated: '2025-11-19',
+      modalities: { input: ['text', 'image'], output: ['text'] },
+      open_weights: false,
+      cost: { input: 0.2, output: 0.5, cache_read: 0.05 },
+      limit: { context: 2000000, output: 30000 },
+    },
+    'grok-4-1-fast-non-reasoning': {
+      id: 'grok-4-1-fast-non-reasoning',
+      name: 'Grok 4.1 Fast (Non-Reasoning)',
+      family: 'grok',
+      attachment: true,
       reasoning: false,
       tool_call: true,
-      structured_output: false,
+      structured_output: true,
       temperature: true,
-      knowledge: '2024-12',
+      knowledge: '2025-07',
+      release_date: '2025-11-19',
+      last_updated: '2025-11-19',
+      modalities: { input: ['text', 'image'], output: ['text'] },
+      open_weights: false,
+      cost: { input: 0.2, output: 0.5, cache_read: 0.05 },
+      limit: { context: 2000000, output: 30000 },
+    },
+    'grok-code-fast-1': {
+      id: 'grok-code-fast-1',
+      name: 'Grok Code Fast 1',
+      family: 'grok',
+      attachment: false,
+      reasoning: true,
+      tool_call: true,
+      structured_output: true,
+      temperature: true,
+      knowledge: '2023-10',
+      release_date: '2025-08-28',
+      last_updated: '2025-08-28',
       modalities: { input: ['text'], output: ['text'] },
-      cost: { input: 2.0, output: 10.0 },
-      limit: { context: 131072, output: 8192 },
+      open_weights: false,
+      cost: { input: 0.2, output: 0.5, cache_read: 0.05 },
+      limit: { context: 2000000, output: 30000 },
     },
   },
   deepseek: {
@@ -343,6 +380,14 @@ export function getModel(providerId: string, modelId: string): Model | undefined
 
 export function isModelFree(model: Model): boolean {
   return (model.cost?.input ?? 0) === 0 && (model.cost?.output ?? 0) === 0;
+}
+
+export const PUBLIC_API_KEY = 'public';
+
+export function isAllModelsFree(providerId: string): boolean {
+  const models = STATIC_MODELS[providerId];
+  if (!models) return false;
+  return Object.values(models).every(isModelFree);
 }
 
 export function isModelAvailable(
