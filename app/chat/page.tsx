@@ -372,8 +372,8 @@ export default function ChatPage() {
               )}
           </div>
 
-          <div className="border-t p-3 bg-card">
-            <div className="flex gap-2">
+          <div className="border-t p-6 bg-card">
+            <div className="flex gap-3">
               <Input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -382,24 +382,24 @@ export default function ChatPage() {
                   isReady ? 'Type your message...' : 'Select a model first'
                 }
                 disabled={!isReady || isLoading}
-                className="flex-1 h-9"
+                className="flex-1 h-14 px-4 text-lg shadow-sm"
               />
               <Button
                 onClick={handleSendMessage}
                 disabled={!isReady || !input.trim() || isLoading}
-                size="sm"
-                className="h-9"
+                size="lg"
+                className="h-14 w-14 rounded-xl shadow-sm"
               >
-                <Send className="h-4 w-4" />
+                <Send className="h-6 w-6" />
               </Button>
               {messages.length > 0 && (
                 <Button
                   variant="ghost"
-                  size="sm"
+                  size="icon"
                   onClick={handleClearChat}
-                  className="h-9 px-2"
+                  className="h-14 w-14 text-muted-foreground hover:text-destructive"
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Trash2 className="h-6 w-6" />
                 </Button>
               )}
             </div>
