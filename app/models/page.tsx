@@ -16,6 +16,7 @@ const ReactJson = dynamic(() => import('react-json-view'), { ssr: false });
 export default function ModelsPage() {
     const [models, setModels] = useState<ModelsResponse | null>(null);
     const [loading, setLoading] = useState(false);
+    const [filter, setFilter] = useState<"all" | "free">("all");
     const { settings, updateProviderSetting, getProviderSetting } = useProviderSettings();
 
     const fetchModels = async () => {
@@ -71,7 +72,7 @@ export default function ModelsPage() {
                     <TabsList className="grid w-full grid-cols-3">
                         <TabsTrigger value="all-models" className="gap-2">
                             <Box className="h-4 w-4" />
-                            All Models
+                            models.dev
                         </TabsTrigger>
                         <TabsTrigger value="free-models" className="gap-2">
                             <Gift className="h-4 w-4" />
@@ -86,9 +87,20 @@ export default function ModelsPage() {
                     <TabsContent value="all-models" className="flex-1 min-h-0 mt-6">
                         <div className="h-full flex flex-col">
                             <div className="flex items-center justify-between gap-4 mb-4">
-                                <p className="text-sm text-muted-foreground">
-                                    All available models from all providers
-                                </p>
+                                <div className="flex items-center gap-2">
+                                    <p className="text-sm text-muted-foreground">
+                                        All available models from all providers
+                                    </p>
+                                    <Tabs value={filter} onValueChange={(v) => setFilter(v as "all" | "free")}>
+                                        <TabsList className="h-8">
+                                            <TabsTrigger value="all" className="h-7 px-3 text-xs">All</TabsTrigger>
+                                            <TabsTrigger value="free" className="h-7 px-3 text-xs gap-1">
+                                                <Gift className="h-3 w-3" />
+                                                Free
+                                            </TabsTrigger>
+                                        </TabsList>
+                                    </Tabs>
+                                </div>
                                 <Button onClick={fetchModels} disabled={loading} variant="outline">
                                     {loading ? "Loading..." : "Refresh"}
                                 </Button>
@@ -96,7 +108,18 @@ export default function ModelsPage() {
                             <div className="flex-1 min-h-0 rounded-md border p-4 overflow-auto bg-muted/10">
                                 {models ? (
                                     <ReactJson
-                                        src={models}
+                                        src={filter === "free" ? Object.entries(models).reduce((acc, [providerId, provider]) => {
+                                            const freeModels: Record<string, typeof provider.models[string]> = {};
+                                            for (const [modelId, model] of Object.entries(provider.models)) {
+                                                if (isModelFree(providerId, modelId)) {
+                                                    freeModels[modelId] = model;
+                                                }
+                                            }
+                                            if (Object.keys(freeModels).length > 0) {
+                                                acc[providerId] = { ...provider, models: freeModels };
+                                            }
+                                            return acc;
+                                        }, {} as ModelsResponse) : models}
                                         theme="rjv-default"
                                         displayDataTypes={false}
                                         collapsed={2}

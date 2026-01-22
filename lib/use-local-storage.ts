@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 
 type UseLocalStorageOptions<T> = {
   serializer?: {
@@ -18,10 +18,10 @@ function useLocalStorage<T>(
   initialValue: T,
   options?: UseLocalStorageOptions<T>
 ) {
-  const serializer = options?.serializer ?? {
+  const serializer = useMemo(() => options?.serializer ?? {
     read: JSON.parse,
     write: JSON.stringify,
-  };
+  }, [options?.serializer]);
 
   const [storedValue, setStoredValue] = useState<T>(initialValue);
 
