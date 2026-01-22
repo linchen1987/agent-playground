@@ -51,6 +51,7 @@ const darkTheme: ThemeObject = {
     base0F: '#f5c2e7',
 };
 
+type ViewMode = "json" | "raw";
 type FilterType = "all" | "free";
 
 export default function ModelsPage() {
@@ -59,6 +60,8 @@ export default function ModelsPage() {
     const [remoteLoading, setRemoteLoading] = useState(false);
     const [localFilter, setLocalFilter] = useState<FilterType>("all");
     const [remoteFilter, setRemoteFilter] = useState<FilterType>("all");
+    const [localViewMode, setLocalViewMode] = useState<ViewMode>("json");
+    const [remoteViewMode, setRemoteViewMode] = useState<ViewMode>("json");
 
     const fetchRemoteModels = async () => {
         setRemoteLoading(true);
@@ -134,18 +137,28 @@ export default function ModelsPage() {
                                             </TabsTrigger>
                                         </TabsList>
                                     </Tabs>
+                                    <Tabs value={localViewMode} onValueChange={(v) => setLocalViewMode(v as ViewMode)}>
+                                        <TabsList className="h-8">
+                                            <TabsTrigger value="json" className="h-7 px-3 text-xs">JSON</TabsTrigger>
+                                            <TabsTrigger value="raw" className="h-7 px-3 text-xs">Raw</TabsTrigger>
+                                        </TabsList>
+                                    </Tabs>
                                 </div>
                             </div>
                             <div className="flex-1 min-h-0 rounded-md border p-4 overflow-auto bg-muted/10">
                                 {localDisplayModels ? (
-                                    <ReactJson
-                                        src={localDisplayModels}
-                                        theme={darkTheme}
-                                        displayDataTypes={false}
-                                        collapsed={2}
-                                        enableClipboard={true}
-                                        style={{ fontSize: '14px', backgroundColor: 'transparent' }}
-                                    />
+                                    localViewMode === "json" ? (
+                                        <ReactJson
+                                            src={localDisplayModels}
+                                            theme={darkTheme}
+                                            displayDataTypes={false}
+                                            collapsed={2}
+                                            enableClipboard={true}
+                                            style={{ fontSize: '14px', backgroundColor: 'transparent' }}
+                                        />
+                                    ) : (
+                                        <pre className="text-sm font-mono whitespace-pre-wrap">{JSON.stringify(localDisplayModels, null, 2)}</pre>
+                                    )
                                 ) : (
                                     <div className="flex h-full items-center justify-center text-muted-foreground">
                                         <div className="text-center">
@@ -178,6 +191,12 @@ export default function ModelsPage() {
                                             </TabsTrigger>
                                         </TabsList>
                                     </Tabs>
+                                    <Tabs value={remoteViewMode} onValueChange={(v) => setRemoteViewMode(v as ViewMode)}>
+                                        <TabsList className="h-8">
+                                            <TabsTrigger value="json" className="h-7 px-3 text-xs">JSON</TabsTrigger>
+                                            <TabsTrigger value="raw" className="h-7 px-3 text-xs">Raw</TabsTrigger>
+                                        </TabsList>
+                                    </Tabs>
                                     <Button onClick={fetchRemoteModels} disabled={remoteLoading} variant="outline">
                                         {remoteLoading ? (
                                             <>
@@ -195,14 +214,18 @@ export default function ModelsPage() {
                             </div>
                             <div className="flex-1 min-h-0 rounded-md border p-4 overflow-auto bg-muted/10">
                                 {remoteDisplayModels ? (
-                                    <ReactJson
-                                        src={remoteDisplayModels}
-                                        theme={darkTheme}
-                                        displayDataTypes={false}
-                                        collapsed={1}
-                                        enableClipboard={true}
-                                        style={{ fontSize: '14px', backgroundColor: 'transparent' }}
-                                    />
+                                    remoteViewMode === "json" ? (
+                                        <ReactJson
+                                            src={remoteDisplayModels}
+                                            theme={darkTheme}
+                                            displayDataTypes={false}
+                                            collapsed={1}
+                                            enableClipboard={true}
+                                            style={{ fontSize: '14px', backgroundColor: 'transparent' }}
+                                        />
+                                    ) : (
+                                        <pre className="text-sm font-mono whitespace-pre-wrap">{JSON.stringify(remoteDisplayModels, null, 2)}</pre>
+                                    )
                                 ) : (
                                     <div className="flex h-full items-center justify-center text-muted-foreground">
                                         <div className="text-center">
