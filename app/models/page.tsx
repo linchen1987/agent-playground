@@ -104,20 +104,20 @@ export default function ModelsPage() {
                 <h2 className="text-lg font-semibold">Models</h2>
             </div>
             <Separator className="flex-none" />
-            <div className="container mx-auto px-4 flex-1 min-h-0 py-6">
-                <Tabs defaultValue="local-models" className="h-full flex flex-col">
+            <div className="container mx-auto px-4 flex-1 min-h-0 pt-6 pb-10">
+                <Tabs defaultValue="settings" className="h-full flex flex-col">
                     <TabsList className="grid w-full grid-cols-3">
-                        <TabsTrigger value="models-dev" className="gap-2">
-                            <Globe className="h-4 w-4" />
-                            models.dev
+                        <TabsTrigger value="settings" className="gap-2">
+                            <Settings className="h-4 w-4" />
+                            Settings
                         </TabsTrigger>
                         <TabsTrigger value="local-models" className="gap-2">
                             <Box className="h-4 w-4" />
                             Local Models
                         </TabsTrigger>
-                        <TabsTrigger value="settings" className="gap-2">
-                            <Settings className="h-4 w-4" />
-                            Settings
+                        <TabsTrigger value="models-dev" className="gap-2">
+                            <Globe className="h-4 w-4" />
+                            models.dev
                         </TabsTrigger>
                     </TabsList>
 
@@ -241,8 +241,10 @@ export default function ModelsPage() {
                         </div>
                     </TabsContent>
 
-                    <TabsContent value="settings" className="flex-1 min-h-0 mt-6">
-                        <ProviderSettings />
+                    <TabsContent value="settings" className="flex-1 min-h-0 mt-6 overflow-auto">
+                        <div className="pb-4">
+                            <ProviderSettings />
+                        </div>
                     </TabsContent>
                 </Tabs>
             </div>

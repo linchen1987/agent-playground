@@ -25,9 +25,8 @@ export function ProviderSettings() {
           const hasAllFreeModels = providerConfig
             ? isAllModelsFree(provider.id)
             : false;
-          const hasFreeModels = providerConfig
-            ? Object.values(providerConfig.models).some(isModelFree)
-            : false;
+          const isOpencode = provider.id === 'opencode';
+          const disableApiKey = !setting.enabled || (isOpencode && hasAllFreeModels);
 
           return (
             <div
@@ -91,15 +90,20 @@ export function ProviderSettings() {
                       )
                     }
                     placeholder={
-                      hasAllFreeModels
+                      isOpencode && hasAllFreeModels
                         ? `Uses '${PUBLIC_API_KEY}' key for free models`
                         : `Enter ${provider.name} API key...`
                     }
-                    disabled={!setting.enabled || hasAllFreeModels}
+                    disabled={disableApiKey}
                   />
-                  {hasAllFreeModels && (
+                  {isOpencode && hasAllFreeModels && (
                     <p className="text-xs text-green-600">
                       All models are free - API key not required
+                    </p>
+                  )}
+                  {!isOpencode && hasAllFreeModels && setting.enabled && !setting.apiKey && (
+                    <p className="text-xs text-amber-600">
+                      Using public key for free models (you can provide your own key)
                     </p>
                   )}
                   {!hasAllFreeModels && setting.enabled && !setting.apiKey && (

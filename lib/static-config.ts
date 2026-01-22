@@ -59,6 +59,14 @@ export const STATIC_PROVIDERS: Omit<Provider, 'models'>[] = [
     env: ['OPENCODE_API_KEY'],
     npm: '@ai-sdk/openai-compatible',
   },
+  {
+    id: 'zhipuai',
+    name: 'Zhipu AI',
+    api: 'https://open.bigmodel.cn/api/paas/v4',
+    doc: 'https://docs.z.ai/guides/overview/pricing',
+    env: ['ZHIPU_API_KEY'],
+    npm: '@ai-sdk/openai-compatible',
+  },
 ];
 
 export const STATIC_MODELS: Record<string, Record<string, Model>> = {
@@ -349,6 +357,46 @@ export const STATIC_MODELS: Record<string, Record<string, Model>> = {
       provider: { npm: '@ai-sdk/anthropic' },
     },
   },
+  zhipuai: {
+    'glm-4.6v-flash': {
+      id: 'glm-4.6v-flash',
+      name: 'GLM-4.6V-Flash',
+      family: 'glm',
+      attachment: true,
+      reasoning: true,
+      tool_call: true,
+      temperature: true,
+      knowledge: '2025-04',
+      release_date: '2025-12-08',
+      last_updated: '2025-12-08',
+      modalities: {
+        input: ['text', 'image', 'video'],
+        output: ['text'],
+      },
+      open_weights: true,
+      cost: { input: 0, output: 0 },
+      limit: { context: 128000, output: 32768 },
+    },
+    'glm-4.7-flash': {
+      id: 'glm-4.7-flash',
+      name: 'GLM-4.7-Flash',
+      family: 'glm-flash',
+      attachment: false,
+      reasoning: true,
+      tool_call: true,
+      temperature: true,
+      knowledge: '2025-04',
+      release_date: '2026-01-19',
+      last_updated: '2026-01-19',
+      modalities: {
+        input: ['text'],
+        output: ['text'],
+      },
+      open_weights: true,
+      cost: { input: 0, output: 0, cache_read: 0, cache_write: 0 },
+      limit: { context: 200000, output: 131072 },
+    },
+  },
 };
 
 export const STATIC_CONFIG: Record<string, Provider> = Object.fromEntries(
@@ -369,6 +417,7 @@ export const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
   deepseek: { apiKey: '', enabled: false },
   openrouter: { apiKey: '', enabled: false },
   opencode: { apiKey: 'public', enabled: true },
+  zhipuai: { apiKey: '', enabled: false },
 };
 
 export function getProvider(providerId: string): Provider | undefined {
