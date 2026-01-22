@@ -346,6 +346,7 @@ export const STATIC_MODELS: Record<string, Record<string, Model>> = {
       open_weights: true,
       cost: { input: 0, output: 0, cache_read: 0 },
       limit: { context: 204800, output: 131072 },
+      provider: { npm: '@ai-sdk/anthropic' },
     },
   },
 };

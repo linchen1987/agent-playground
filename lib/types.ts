@@ -78,6 +78,8 @@ export interface Model {
   limit?: ModelLimit;
   /** Whether interleaved mode is supported (optional) */
   interleaved?: boolean | { field: string };
+  /** Provider npm package name (optional), e.g., "@ai-sdk/anthropic" */
+  provider?: { npm: string };
 }
 
 /**

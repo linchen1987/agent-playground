@@ -1,14 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
+import { createAnthropic } from '@ai-sdk/anthropic';
 import { streamText } from 'ai';
 import { STATIC_CONFIG } from '@/lib/static-config';
 import type { ChatRequest, StreamChunk } from '@/lib/types';
 
-function createProvider(providerId: string, apiKey: string) {
+function createProvider(providerId: string, modelId: string, apiKey: string) {
   const config = STATIC_CONFIG[providerId];
 
   if (!config) {
     throw new Error(`Provider not found: ${providerId}`);
+  }
+
+  const modelConfig = config.models[modelId];
+  const modelProviderNpm = modelConfig?.provider?.npm;
+
+  if (modelProviderNpm === '@ai-sdk/anthropic') {
+    return createAnthropic({
+      apiKey,
+      baseURL: config.api,
+    });
   }
 
   return createOpenAICompatible({
@@ -108,8 +119,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const provider = createProvider(providerId, apiKey);
-    const model = provider.chatModel(modelId);
+    const provider = createProvider(providerId, modelId, apiKey);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const model = (provider as any).languageModel(modelId);
 
     const thinkingOptions = getProviderThinkingOptions(thinking);
 
