@@ -40,6 +40,7 @@ export function ProjectSelector({ open, onOpenChange, onSelect }: ProjectSelecto
         if (open) {
             fetchDirectories(currentPath || undefined);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open]);
 
     const handleNavigate = (dir: string) => {

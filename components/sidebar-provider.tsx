@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { STORAGE_KEYS } from "@/lib/storage-keys";
 
 type SidebarContextType = {
     isCollapsed: boolean;
@@ -10,21 +11,17 @@ type SidebarContextType = {
 const SidebarContext = createContext<SidebarContextType | undefined>(undefined);
 
 export function SidebarProvider({ children }: { children: React.ReactNode }) {
-    // Initialize with false, assuming expanded by default
     const [isCollapsed, setIsCollapsed] = useState(false);
 
-    // Optional: Persist state to local storage
     useEffect(() => {
-        const savedState = localStorage.getItem("sidebar_collapsed");
-        if (savedState) {
-            setIsCollapsed(savedState === "true");
-        }
+        const savedState = localStorage.getItem(STORAGE_KEYS.sidebarCollapsed);
+        setIsCollapsed(savedState === "true");
     }, []);
 
     const toggleSidebar = () => {
         setIsCollapsed((prev) => {
             const newState = !prev;
-            localStorage.setItem("sidebar_collapsed", String(newState));
+            localStorage.setItem(STORAGE_KEYS.sidebarCollapsed, String(newState));
             return newState;
         });
     };

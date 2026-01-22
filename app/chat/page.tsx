@@ -1,398 +1,345 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
+import { useState, useCallback } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Check, ChevronsUpDown, Send, Trash2, Bot, User } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Separator } from "@/components/ui/separator";
-import { Input } from "@/components/ui/input";
-import { getFreeModels, streamFetch, type ModelsResponse, type StreamChunk } from "@/lib/api";
-import { toast } from "sonner";
-import useChatConfig from "@/lib/use-chat-config";
-import useProviderSettings, { STATIC_PROVIDERS } from "@/lib/use-provider-settings";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { ProviderModelSelect } from '@/components/provider-model-select';
+import { streamChat, type StreamChunk } from '@/lib/api';
+import useProviderSettings from '@/lib/use-provider-settings';
+import useModelSelection from '@/lib/use-model-selection';
+import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+import {
+  Send,
+  Trash2,
+  Bot,
+  User,
+  AlertCircle,
+  Sparkles,
+  Loader2,
+  ChevronDown,
+  Check,
+} from 'lucide-react';
 
-export default function LLMsPage() {
-    const { selectedModel, setSelectedModel, selectedProvider, setSelectedProvider, thinkingSpeed, setThinkingSpeed, apiKey, setApiKey, baseUrl, setBaseUrl, providerName, setProviderName } = useChatConfig();
-    const { getProviderSetting, getEnabledProviders } = useProviderSettings();
-    const [freeModels, setFreeModels] = useState<string[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [input, setInput] = useState("");
-    const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant' | 'error', content: string, reasoning?: string, rawData?: any, errorType?: string }>>([]);
-    const [isLoading, setIsLoading] = useState(false);
+interface Message {
+  id: string;
+  role: 'user' | 'assistant' | 'error';
+  content: string;
+  reasoning?: string;
+  timestamp: number;
+}
 
-    const handleClearChat = () => {
-        setMessages([]);
-        toast.success("Chat cleared");
+export default function ChatPage() {
+  const { getProviderSetting } = useProviderSettings();
+  const {
+    selectedProviderId,
+    selectedModelId,
+    setSelectedProviderId,
+    setSelectedModelId,
+  } = useModelSelection();
+
+  const [input, setInput] = useState('');
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [thinkingSpeed, setThinkingSpeed] = useState<string>('fast');
+
+  const isReady = Boolean(selectedProviderId && selectedModelId);
+
+  const handleSendMessage = useCallback(async () => {
+    if (!input.trim() || !selectedProviderId || !selectedModelId || isLoading) {
+      return;
+    }
+
+    const userMessage: Message = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: input.trim(),
+      timestamp: Date.now(),
     };
 
-    const handleSendMessage = async () => {
-        if (!input.trim() || !selectedModel || !selectedProvider || isLoading) return;
+    setMessages((prev) => [...prev, userMessage]);
+    setInput('');
+    setIsLoading(true);
 
-        const userMessage = { role: 'user' as const, content: input.trim() };
-        setMessages(prev => [...prev, userMessage]);
-        setInput("");
-        setIsLoading(true);
+    try {
+      const providerSetting = getProviderSetting(selectedProviderId);
+      const apiKey = providerSetting.apiKey || 'public';
 
-        try {
-            let assistantMessage: { role: 'assistant', content: string, reasoning?: string } = { role: 'assistant', content: '' };
-            setMessages(prev => [...prev, assistantMessage]);
+      const assistantMessage: Message = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: '',
+        reasoning: '',
+        timestamp: Date.now(),
+      };
 
-            // 获取选中的 provider 配置
-            const providerConfig = STATIC_PROVIDERS.find(p => p.id === selectedProvider);
-            const providerSetting = getProviderSetting(selectedProvider);
-            
-            if (!providerConfig) {
-                toast.error('Provider not found');
-                return;
-            }
+      setMessages((prev) => [...prev, assistantMessage]);
 
-            // 如果有免费模型，自动使用 public key
-            const finalApiKey = providerSetting.apiKey || 'public';
+      await streamChat(
+        {
+          providerId: selectedProviderId,
+          modelId: selectedModelId,
+          apiKey,
+          thinking: {
+            type: thinkingSpeed === 'disabled' ? 'disabled' : 'enabled',
+            speed: thinkingSpeed === 'disabled' ? undefined : (thinkingSpeed as 'fast' | 'slow'),
+          },
+          messages: [
+            ...messages.map((m) => ({
+              role: m.role as 'user' | 'assistant',
+              content: m.content,
+            })),
+            { role: 'user', content: userMessage.content },
+          ],
+        },
+        {
+          onData: (chunk: StreamChunk) => {
+            setMessages((prev) => {
+              const last = prev[prev.length - 1];
+              if (last.id !== assistantMessage.id) return prev;
 
-            await streamFetch('/api/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    model: selectedModel,
-                    providerName: providerConfig.name,
-                    apiKey: finalApiKey,
-                    baseUrl: providerConfig.api,
-                    thinking: thinkingSpeed ? { speed: thinkingSpeed === 'disabled' ? undefined : thinkingSpeed, type: thinkingSpeed === 'disabled' ? 'disabled' : undefined } : undefined,
-                    messages: [...messages, userMessage].map(msg => ({
-                        role: msg.role,
-                        content: msg.content
-                    }))
-                })
-            }, {
-                onData: (chunk) => {
-                    const lines = chunk.split('\n').filter(line => line.trim() !== '');
-                    for (const line of lines) {
-                        try {
-                            const data = JSON.parse(line) as StreamChunk;
-                            if (data.type === 'text') {
-                                assistantMessage.content += data.content;
-                                setMessages(prev => {
-                                    const newMessages = [...prev];
-                                    newMessages[newMessages.length - 1] = { ...assistantMessage };
-                                    return newMessages;
-                                });
-                            } else if (data.type === 'reasoning') {
-                                assistantMessage.reasoning = (assistantMessage.reasoning || '') + data.content;
-                                setMessages(prev => {
-                                    const newMessages = [...prev];
-                                    newMessages[newMessages.length - 1] = { ...assistantMessage };
-                                    return newMessages;
-                                });
-                            } else if (data.type === 'error') {
-                                toast.error(data.message);
-                                const errorMessage = { 
-                                    role: 'error' as const, 
-                                    content: data.message,
-                                    errorType: data.type
-                                };
-                                setMessages(prev => [...prev, errorMessage]);
-                            }
-                        } catch (e) {
-                            console.error('Failed to parse stream chunk:', line, e);
-                        }
-                    }
-                },
-                onComplete: () => {
-                    console.log('Stream completed');
-                },
-                onError: (error) => {
-                    console.error('Stream error:', error);
-                    toast.error('Failed to send message');
-                }
+              const updated = { ...last };
+
+              switch (chunk.type) {
+                case 'text':
+                  updated.content += chunk.content;
+                  break;
+                case 'reasoning':
+                  updated.reasoning = (updated.reasoning || '') + chunk.content;
+                  break;
+                case 'error':
+                  updated.role = 'error';
+                  updated.content = chunk.message;
+                  break;
+              }
+
+              return [...prev.slice(0, -1), updated];
             });
-        } catch (error) {
-            console.error('Error sending message:', error);
-            toast.error('Failed to send message');
-        } finally {
-            setIsLoading(false);
+          },
+          onError: (error: Error) => {
+            toast.error(error.message);
+            setMessages((prev) => {
+              const last = prev[prev.length - 1];
+              if (last.id !== assistantMessage.id) return prev;
+              return [
+                ...prev.slice(0, -1),
+                { ...last, role: 'error', content: error.message },
+              ];
+            });
+          },
+          onComplete: () => {
+            toast.success('Response received');
+          },
         }
-    };
+      );
+    } catch (error) {
+      toast.error('Failed to send message');
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [
+    input,
+    selectedProviderId,
+    selectedModelId,
+    isLoading,
+    messages,
+    thinkingSpeed,
+    getProviderSetting,
+  ]);
 
-    useEffect(() => {
-        const fetchModels = async () => {
-            setLoading(true);
-            try {
-                const data: ModelsResponse = await getFreeModels();
-                // Only get models from opencode provider
-                const opencodeProvider = data.opencode;
-                const modelList = opencodeProvider ? Object.keys(opencodeProvider.models) : [];
-                setFreeModels(modelList);
-            } catch (error) {
-                console.error(error);
-                toast.error("Failed to fetch free models");
-            } finally {
-                setLoading(false);
-            }
-        };
+  const handleClearChat = () => {
+    setMessages([]);
+    toast.success('Chat cleared');
+  };
 
-        fetchModels();
-    }, []);
-    
-    return (
-        <div className="h-screen flex flex-col">
-            <div className="container mx-auto px-4 flex flex-col items-start justify-between space-y-2 py-4 sm:flex-row sm:items-center sm:space-y-0 md:h-16 flex-none">
-                <h2 className="text-lg font-semibold">LLM Models</h2>
+  return (
+    <div className="h-screen flex flex-col bg-background">
+      <div className="container mx-auto px-4 py-3 flex-none">
+        <h1 className="text-xl font-semibold flex items-center gap-2">
+          <Sparkles className="h-5 w-5 text-primary" />
+          Chat
+        </h1>
+      </div>
+
+      <div className="container mx-auto px-4 flex-1 flex gap-4 min-h-0">
+        <div className="w-72 flex-none">
+          <ProviderModelSelect
+            selectedProviderId={selectedProviderId}
+            selectedModelId={selectedModelId}
+            onChange={(providerId, modelId) => {
+              setSelectedProviderId(providerId);
+              setSelectedModelId(modelId);
+            }}
+          />
+          {selectedProviderId && selectedModelId && (
+            <div className="mt-4">
+              <label className="text-sm font-medium flex items-center gap-1 mb-2">
+                <Bot className="h-4 w-4" />
+                Thinking
+              </label>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-between"
+                  >
+                    {thinkingSpeed === 'fast' ? 'Fast (Low Effort)' :
+                     thinkingSpeed === 'slow' ? 'Slow (High Effort)' :
+                     thinkingSpeed === 'disabled' ? 'Disabled' : 'Auto'}
+                    <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-full">
+                  <DropdownMenuItem onClick={() => setThinkingSpeed('fast')}>
+                    <Check className={cn('mr-2 h-4 w-4', thinkingSpeed === 'fast' ? 'opacity-100' : 'opacity-0')} />
+                    Fast (Low Effort)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setThinkingSpeed('slow')}>
+                    <Check className={cn('mr-2 h-4 w-4', thinkingSpeed === 'slow' ? 'opacity-100' : 'opacity-0')} />
+                    Slow (High Effort)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setThinkingSpeed('disabled')}>
+                    <Check className={cn('mr-2 h-4 w-4', thinkingSpeed === 'disabled' ? 'opacity-100' : 'opacity-0')} />
+                    Disabled
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
-            <Separator className="flex-none" />
-            <div className="container mx-auto flex-1 py-6 px-4">
-                <div className="max-w-[1200px] space-y-8">
-                    <div className="space-y-4">
-                        <div className="flex flex-col gap-4 p-6 border rounded-lg bg-card text-card-foreground shadow-sm">
-                            <div className="flex items-center justify-between">
-                                <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                    Provider
-                                </label>
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button
-                                            variant="outline"
-                                            role="combobox"
-                                            className="w-[300px] justify-between"
-                                            suppressHydrationWarning
-                                        >
-                                            {selectedProvider ? STATIC_PROVIDERS.find(p => p.id === selectedProvider)?.name : "Select a provider..."}
-                                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent className="w-[300px] max-h-[300px] overflow-y-auto">
-                                        {STATIC_PROVIDERS.map((provider) => {
-                                            const setting = getProviderSetting(provider.id);
-                                            const isEnabled = setting.enabled;
-                                            return (
-                                                <DropdownMenuItem
-                                                    key={provider.id}
-                                                    onClick={() => isEnabled && setSelectedProvider(provider.id)}
-                                                    className={cn("cursor-pointer", !isEnabled && "opacity-50")}
-                                                    disabled={!isEnabled}
-                                                >
-                                                    <Check
-                                                        className={cn(
-                                                            "mr-2 h-4 w-4",
-                                                            selectedProvider === provider.id
-                                                                ? "opacity-100"
-                                                                : "opacity-0"
-                                                        )}
-                                                    />
-                                                    {provider.name}
-                                                </DropdownMenuItem>
-                                            );
-                                        })}
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                            </div>
+          )}
+        </div>
 
-                            <div className="flex items-center justify-between">
-                                <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                    Model
-                                </label>
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button
-                                            variant="outline"
-                                            role="combobox"
-                                            className="w-[300px] justify-between"
-                                            suppressHydrationWarning
-                                        >
-                                            {selectedModel || (loading ? "Loading..." : "Select a model...")}
-                                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent className="w-[300px] max-h-[300px] overflow-y-auto">
-                                        {freeModels.length > 0 ? (
-                                            freeModels.map((model) => (
-                                                <DropdownMenuItem
-                                                    key={model}
-                                                    onClick={() => setSelectedModel(model)}
-                                                    className="cursor-pointer"
-                                                >
-                                                    <Check
-                                                        className={cn(
-                                                            "mr-2 h-4 w-4",
-                                                            selectedModel === model
-                                                                ? "opacity-100"
-                                                                : "opacity-0"
-                                                        )}
-                                                    />
-                                                    {model}
-                                                </DropdownMenuItem>
-                                            ))
-                                        ) : (
-                                            <div className="p-2 text-sm text-muted-foreground text-center">
-                                                {loading ? "Loading models..." : "No free models found"}
-                                            </div>
-                                        )}
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                            </div>
-
-                            <Separator />
-
-                            <div className="flex items-center justify-between">
-                                <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                    Thinking Speed
-                                </label>
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button
-                                            variant="outline"
-                                            role="combobox"
-                                            className="w-[300px] justify-between"
-                                            suppressHydrationWarning
-                                        >
-                                            {thinkingSpeed ? (thinkingSpeed.charAt(0).toUpperCase() + thinkingSpeed.slice(1)) : "Default (Auto)"}
-                                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent className="w-[300px]">
-                                        <DropdownMenuItem onClick={() => setThinkingSpeed(null)}>
-                                            <Check className={cn("mr-2 h-4 w-4", !thinkingSpeed ? "opacity-100" : "opacity-0")} />
-                                            Default (Auto)
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => setThinkingSpeed("fast")}>
-                                            <Check className={cn("mr-2 h-4 w-4", thinkingSpeed === "fast" ? "opacity-100" : "opacity-0")} />
-                                            Fast (Low Effort)
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => setThinkingSpeed("slow")}>
-                                            <Check className={cn("mr-2 h-4 w-4", thinkingSpeed === "slow" ? "opacity-100" : "opacity-0")} />
-                                            Slow (High Effort)
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => setThinkingSpeed("disabled")}>
-                                            <Check className={cn("mr-2 h-4 w-4", thinkingSpeed === "disabled" ? "opacity-100" : "opacity-0")} />
-                                            Disabled
-                                        </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                            </div>
+        <div className="flex-1 flex flex-col min-h-0 border rounded-xl bg-card/50">
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {messages.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-muted-foreground">
+                <div className="text-center">
+                  <Bot className="h-10 w-10 mx-auto mb-3 opacity-40" />
+                  <p className="text-sm">Start a conversation</p>
+                  {!isReady && (
+                    <p className="text-xs text-amber-500 mt-2">
+                      Please select a provider and model
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <>
+                {messages.map((message) => (
+                  <div
+                    key={message.id}
+                    className={`flex gap-2 ${
+                      message.role === 'user' ? 'flex-row-reverse' : ''
+                    }`}
+                  >
+                    <div className="flex-none mt-1">
+                      {message.role === 'user' ? (
+                        <div className="h-7 w-7 rounded-full bg-primary/20 flex items-center justify-center">
+                          <User className="h-4 w-4 text-primary" />
                         </div>
+                      ) : message.role === 'error' ? (
+                        <div className="h-7 w-7 rounded-full bg-destructive/20 flex items-center justify-center">
+                          <AlertCircle className="h-4 w-4 text-destructive" />
+                        </div>
+                      ) : (
+                        <div className="h-7 w-7 rounded-full bg-muted flex items-center justify-center">
+                          <Bot className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                      )}
                     </div>
 
-                    {selectedModel && (
-                        <div className="space-y-4">
-                            <div className="flex items-center justify-between">
-                                <h3 className="text-xl font-medium">Chat</h3>
-                                {messages.length > 0 && (
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={handleClearChat}
-                                        className="flex items-center gap-2"
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                        Clear Chat
-                                    </Button>
-                                )}
-                            </div>
+                    <div className={`flex-1 ${message.role === 'user' ? 'text-right' : ''}`}>
+                      {message.role === 'assistant' && message.reasoning && (
+                        <details open className="text-xs text-muted-foreground/70 mb-2 ml-1">
+                          <summary className="cursor-pointer hover:text-muted-foreground">
+                            Thinking
+                          </summary>
+                          <pre className="whitespace-pre-wrap mt-1.5 pl-2 border-l border-muted">
+                            {message.reasoning}
+                          </pre>
+                        </details>
+                      )}
 
-                            <div className="border rounded-lg bg-card text-card-foreground shadow-sm">
-                                <div className="h-96 overflow-y-auto p-4 space-y-4">
-                                    {messages.length === 0 ? (
-                                        <div className="text-center text-muted-foreground py-8" suppressHydrationWarning>
-                                            Start a conversation with {selectedModel}
-                                        </div>
-                                    ) : (
-                                         messages.map((message, index) => (
-                                             <div key={index} className={cn(
-                                                 "p-3 rounded-lg flex gap-3",
-                                                 message.role === 'user' ? "flex-row-reverse bg-primary/10 ml-auto w-fit max-w-[80%]" : 
-                                                 message.role === 'error' ? "bg-destructive/10 mr-auto ml-8" :
-                                                 "bg-secondary/10 mr-8"
-                                             )}>
-                                                 <div className="flex-none mt-1">
-                                                     {message.role === 'user' ? (
-                                                         <div className="bg-primary h-8 w-8 rounded-full flex items-center justify-center text-primary-foreground">
-                                                             <User className="h-5 w-5" />
-                                                         </div>
-                                                     ) : message.role === 'error' ? (
-                                                         <div className="bg-destructive h-8 w-8 rounded-full flex items-center justify-center text-destructive-foreground">
-                                                             <Trash2 className="h-5 w-5" />
-                                                         </div>
-                                                     ) : (
-                                                         <div className="bg-muted h-8 w-8 rounded-full flex items-center justify-center text-secondary-foreground border">
-                                                             <Bot className="h-5 w-5" />
-                                                         </div>
-                                                     )}
-                                                 </div>
-                                                <div className="flex-1 overflow-hidden">
-                                                    <div className="font-medium text-xs mb-1 opacity-50" suppressHydrationWarning>
-                                                        {message.role === 'user' ? 'You' : 
-                                                         message.role === 'error' ? `Error (${message.errorType})` : 
-                                                         selectedModel}
-                                                    </div>
-                                                    <div className="whitespace-pre-wrap text-sm">
-                                                        {message.role === 'assistant' && message.reasoning && (
-                                                            <details open className="mb-2 text-xs text-muted-foreground border-l-2 pl-2 border-primary/20">
-                                                                <summary className="cursor-pointer hover:text-foreground font-medium">
-                                                                    Thinking Process
-                                                                </summary>
-                                                                <div className="mt-1 whitespace-pre-wrap">
-                                                                    {message.reasoning}
-                                                                </div>
-                                                            </details>
-                                                        )}
-                                                        {/* Loading Skeleton Logic */}
-                                                        {message.role === 'assistant' && !message.content && !message.reasoning && isLoading && index === messages.length - 1 ? (
-                                                            <div className="space-y-2 animate-pulse">
-                                                                <div className="h-4 bg-muted rounded w-3/4"></div>
-                                                                <div className="h-4 bg-muted rounded w-1/2"></div>
-                                                            </div>
-                                                        ) : (
-                                                            <div className={message.role === 'error' ? 'text-destructive' : ''}>
-                                                                {message.content}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    {message.rawData && (
-                                                        <details className="mt-3 text-xs">
-                                                            <summary className="cursor-pointer font-mono bg-muted p-2 rounded">
-                                                                Raw JSON Response
-                                                            </summary>
-                                                            <pre className="mt-2 p-2 bg-muted/50 rounded overflow-x-auto">
-                                                                {JSON.stringify(message.rawData, null, 2)}
-                                                            </pre>
-                                                        </details>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        ))
-                                    )}
-                                </div>
+                      <div
+                        className={`inline-block max-w-[85%] rounded-lg px-4 py-2.5 text-base leading-relaxed ${
+                          message.role === 'user'
+                            ? 'bg-primary/10 text-foreground'
+                            : message.role === 'error'
+                            ? 'bg-destructive/10 text-destructive'
+                            : 'bg-muted/50 text-foreground'
+                        }`}
+                      >
+                        {message.content || (
+                          <span className="text-muted-foreground/50 italic">
+                            ...
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  ))}
 
-                                <div className="border-t p-4">
-                                    <div className="flex gap-2">
-                                        <input
-                                            type="text"
-                                            value={input}
-                                            onChange={(e) => setInput(e.target.value)}
-                                            onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                                            placeholder="Type your message..."
-                                            className="flex-1 px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                                            disabled={isLoading}
-                                        />
-                                        <Button
-                                            onClick={handleSendMessage}
-                                            disabled={!input.trim() || isLoading}
-                                            size="sm"
-                                        >
-                                            <Send className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                </div>
-                            </div>
+                  {isLoading && messages[messages.length - 1]?.role !== 'assistant' && (
+                    <div className="flex gap-2">
+                      <div className="flex-none mt-1">
+                        <div className="h-7 w-7 rounded-full bg-muted flex items-center justify-center">
+                          <Bot className="h-4 w-4 text-muted-foreground" />
                         </div>
-                    )}
-                </div>
+                      </div>
+                      <div className="flex-1">
+                        <div className="inline-flex items-center gap-1 rounded-lg bg-muted/50 px-3 py-2">
+                          <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">
+                            Generating...
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+          </div>
+
+          <div className="border-t p-3 bg-card">
+            <div className="flex gap-2">
+              <Input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                placeholder={
+                  isReady ? 'Type your message...' : 'Select a model first'
+                }
+                disabled={!isReady || isLoading}
+                className="flex-1 h-9"
+              />
+              <Button
+                onClick={handleSendMessage}
+                disabled={!isReady || !input.trim() || isLoading}
+                size="sm"
+                className="h-9"
+              >
+                <Send className="h-4 w-4" />
+              </Button>
+              {messages.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleClearChat}
+                  className="h-9 px-2"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
             </div>
+          </div>
         </div>
-    );
+      </div>
+    </div>
+  );
 }

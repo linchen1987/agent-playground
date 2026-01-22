@@ -1,65 +1,61 @@
-"use client";
+'use client';
 
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useState } from "react";
 import { toast } from "sonner";
-import { getModels, getFreeModels, type ModelsResponse } from "@/lib/api";
-import useProviderSettings, { STATIC_PROVIDERS } from "@/lib/use-provider-settings";
 import dynamic from 'next/dynamic';
-import { Box, Gift, Settings } from "lucide-react";
+import { Box, Gift, Settings, RefreshCw, Globe } from "lucide-react";
+import { ProviderSettings } from "@/components/provider-settings";
+import { STATIC_CONFIG, isModelFree } from "@/lib/static-config";
+import type { ModelsResponse } from "@/lib/types";
 
 const ReactJson = dynamic(() => import('react-json-view'), { ssr: false });
 
+type FilterType = "all" | "free";
+
 export default function ModelsPage() {
-    const [models, setModels] = useState<ModelsResponse | null>(null);
-    const [loading, setLoading] = useState(false);
-    const [filter, setFilter] = useState<"all" | "free">("all");
-    const { settings, updateProviderSetting, getProviderSetting } = useProviderSettings();
+    const localModels = STATIC_CONFIG;
+    const [remoteModels, setRemoteModels] = useState<ModelsResponse | null>(null);
+    const [remoteLoading, setRemoteLoading] = useState(false);
+    const [localFilter, setLocalFilter] = useState<FilterType>("all");
+    const [remoteFilter, setRemoteFilter] = useState<FilterType>("all");
 
-    const fetchModels = async () => {
-        setLoading(true);
+    const fetchRemoteModels = async () => {
+        setRemoteLoading(true);
         try {
-            const data = await getModels();
-            setModels(data);
-            toast.success("Models fetched successfully");
+            const data = await fetch('/api/models-dev').then((res) => res.json());
+            setRemoteModels(data);
+            toast.success("Models.dev data loaded");
         } catch (error) {
             console.error(error);
-            toast.error("Failed to fetch models");
+            toast.error("Failed to load models.dev data");
         } finally {
-            setLoading(false);
+            setRemoteLoading(false);
         }
     };
 
-    const fetchFreeModels = async () => {
-        setLoading(true);
-        try {
-            const data = await getFreeModels();
-            setModels(data);
-            toast.success("Free models fetched successfully");
-        } catch (error) {
-            console.error(error);
-            toast.error("Failed to fetch free models");
-        } finally {
-            setLoading(false);
-        }
+    const filterModels = (models: ModelsResponse | null, filter: FilterType): ModelsResponse | null => {
+        if (!models) return null;
+        if (filter === "all") return models;
+
+        return Object.entries(models).reduce((acc, [providerId, provider]) => {
+            const freeModels: Record<string, typeof provider.models[string]> = {};
+            for (const [modelId, model] of Object.entries(provider.models)) {
+                if (isModelFree(model)) {
+                    freeModels[modelId] = model;
+                }
+            }
+            if (Object.keys(freeModels).length > 0) {
+                acc[providerId] = { ...provider, models: freeModels };
+            }
+            return acc;
+        }, {} as ModelsResponse);
     };
 
-    // 检查模型是否免费（input和output cost都为0）
-    const isModelFree = (providerId: string, modelId: string) => {
-        const provider = models?.[providerId];
-        if (!provider) return false;
-        
-        const model = provider.models[modelId];
-        if (!model) return false;
-        
-        const inputCost = model.cost?.input ?? 0;
-        const outputCost = model.cost?.output ?? 0;
-        
-        return inputCost === 0 && outputCost === 0;
-    };
+    const localDisplayModels = filterModels(localModels, localFilter);
+    const remoteDisplayModels = filterModels(remoteModels, remoteFilter);
 
     return (
         <div className="h-screen flex flex-col">
@@ -68,30 +64,30 @@ export default function ModelsPage() {
             </div>
             <Separator className="flex-none" />
             <div className="container mx-auto px-4 flex-1 min-h-0 py-6">
-                <Tabs defaultValue="all-models" className="h-full flex flex-col">
+                <Tabs defaultValue="local-models" className="h-full flex flex-col">
                     <TabsList className="grid w-full grid-cols-3">
-                        <TabsTrigger value="all-models" className="gap-2">
-                            <Box className="h-4 w-4" />
+                        <TabsTrigger value="models-dev" className="gap-2">
+                            <Globe className="h-4 w-4" />
                             models.dev
                         </TabsTrigger>
-                        <TabsTrigger value="free-models" className="gap-2">
-                            <Gift className="h-4 w-4" />
-                            Free Models
+                        <TabsTrigger value="local-models" className="gap-2">
+                            <Box className="h-4 w-4" />
+                            Local Models
                         </TabsTrigger>
                         <TabsTrigger value="settings" className="gap-2">
                             <Settings className="h-4 w-4" />
                             Settings
                         </TabsTrigger>
                     </TabsList>
-                    
-                    <TabsContent value="all-models" className="flex-1 min-h-0 mt-6">
+
+                    <TabsContent value="local-models" className="flex-1 min-h-0 mt-6">
                         <div className="h-full flex flex-col">
                             <div className="flex items-center justify-between gap-4 mb-4">
+                                <p className="text-sm text-muted-foreground">
+                                    Available models from configured providers
+                                </p>
                                 <div className="flex items-center gap-2">
-                                    <p className="text-sm text-muted-foreground">
-                                        All available models from all providers
-                                    </p>
-                                    <Tabs value={filter} onValueChange={(v) => setFilter(v as "all" | "free")}>
+                                    <Tabs value={localFilter} onValueChange={(v) => setLocalFilter(v as FilterType)}>
                                         <TabsList className="h-8">
                                             <TabsTrigger value="all" className="h-7 px-3 text-xs">All</TabsTrigger>
                                             <TabsTrigger value="free" className="h-7 px-3 text-xs gap-1">
@@ -101,25 +97,11 @@ export default function ModelsPage() {
                                         </TabsList>
                                     </Tabs>
                                 </div>
-                                <Button onClick={fetchModels} disabled={loading} variant="outline">
-                                    {loading ? "Loading..." : "Refresh"}
-                                </Button>
                             </div>
                             <div className="flex-1 min-h-0 rounded-md border p-4 overflow-auto bg-muted/10">
-                                {models ? (
+                                {localDisplayModels ? (
                                     <ReactJson
-                                        src={filter === "free" ? Object.entries(models).reduce((acc, [providerId, provider]) => {
-                                            const freeModels: Record<string, typeof provider.models[string]> = {};
-                                            for (const [modelId, model] of Object.entries(provider.models)) {
-                                                if (isModelFree(providerId, modelId)) {
-                                                    freeModels[modelId] = model;
-                                                }
-                                            }
-                                            if (Object.keys(freeModels).length > 0) {
-                                                acc[providerId] = { ...provider, models: freeModels };
-                                            }
-                                            return acc;
-                                        }, {} as ModelsResponse) : models}
+                                        src={localDisplayModels}
                                         theme="rjv-default"
                                         displayDataTypes={false}
                                         collapsed={2}
@@ -130,42 +112,66 @@ export default function ModelsPage() {
                                     <div className="flex h-full items-center justify-center text-muted-foreground">
                                         <div className="text-center">
                                             <p className="mb-2">No models loaded</p>
-                                            <Button onClick={fetchModels} disabled={loading}>
-                                                Load All Models
-                                            </Button>
                                         </div>
                                     </div>
                                 )}
                             </div>
                         </div>
                     </TabsContent>
-                    
-                    <TabsContent value="free-models" className="flex-1 min-h-0 mt-6">
+
+                    <TabsContent value="models-dev" className="flex-1 min-h-0 mt-6">
                         <div className="h-full flex flex-col">
                             <div className="flex items-center justify-between gap-4 mb-4">
-                                <p className="text-sm text-muted-foreground">
-                                    Free models (no cost for input and output)
-                                </p>
-                                <Button onClick={fetchFreeModels} disabled={loading} variant="outline">
-                                    {loading ? "Loading..." : "Refresh"}
-                                </Button>
+                                <div>
+                                    <p className="text-sm text-muted-foreground">
+                                        All models from models.dev API
+                                    </p>
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                        Source: <a href="https://models.dev/api.json" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">https://models.dev/api.json</a>
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <Tabs value={remoteFilter} onValueChange={(v) => setRemoteFilter(v as FilterType)}>
+                                        <TabsList className="h-8">
+                                            <TabsTrigger value="all" className="h-7 px-3 text-xs">All</TabsTrigger>
+                                            <TabsTrigger value="free" className="h-7 px-3 text-xs gap-1">
+                                                <Gift className="h-3 w-3" />
+                                                Free
+                                            </TabsTrigger>
+                                        </TabsList>
+                                    </Tabs>
+                                    <Button onClick={fetchRemoteModels} disabled={remoteLoading} variant="outline">
+                                        {remoteLoading ? (
+                                            <>
+                                                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                                                Loading...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <RefreshCw className="h-4 w-4 mr-2" />
+                                                Refresh
+                                            </>
+                                        )}
+                                    </Button>
+                                </div>
                             </div>
                             <div className="flex-1 min-h-0 rounded-md border p-4 overflow-auto bg-muted/10">
-                                {models ? (
+                                {remoteDisplayModels ? (
                                     <ReactJson
-                                        src={models}
+                                        src={remoteDisplayModels}
                                         theme="rjv-default"
                                         displayDataTypes={false}
-                                        collapsed={2}
+                                        collapsed={1}
                                         enableClipboard={true}
                                         style={{ fontSize: '14px', backgroundColor: 'transparent' }}
                                     />
                                 ) : (
                                     <div className="flex h-full items-center justify-center text-muted-foreground">
                                         <div className="text-center">
-                                            <p className="mb-2">No free models loaded</p>
-                                            <Button onClick={fetchFreeModels} disabled={loading}>
-                                                Load Free Models
+                                            <Globe className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                                            <p className="mb-2">Click refresh to load models from models.dev</p>
+                                            <Button onClick={fetchRemoteModels} disabled={remoteLoading}>
+                                                Load from models.dev
                                             </Button>
                                         </div>
                                     </div>
@@ -173,108 +179,9 @@ export default function ModelsPage() {
                             </div>
                         </div>
                     </TabsContent>
-                    
+
                     <TabsContent value="settings" className="flex-1 min-h-0 mt-6">
-                        <div className="h-full flex flex-col">
-                            <div className="mb-4">
-                                <p className="text-sm text-muted-foreground">
-                                    Configure API providers and enable them for use in chat
-                                </p>
-                            </div>
-                            <div className="flex-1 min-h-0 rounded-md border p-4 overflow-auto bg-muted/10">
-                                <div className="space-y-6">
-                                    <div className="flex items-center justify-between">
-                                        <h3 className="text-lg font-medium">Provider Configuration</h3>
-                                        <div className="text-xs text-muted-foreground">
-                                            {Object.values(settings).filter(s => s.enabled).length} of {STATIC_PROVIDERS.length} providers enabled
-                                        </div>
-                                    </div>
-                                    <div className="space-y-4">
-                                        {STATIC_PROVIDERS.map((provider) => {
-                                            const setting = getProviderSetting(provider.id);
-                                            const hasFreeModels = models && Object.keys(models[provider.id]?.models || {}).some(modelId => 
-                                                isModelFree(provider.id, modelId)
-                                            );
-                                            
-                                            return (
-                                                <div key={provider.id} className="p-4 border rounded-lg bg-card">
-                                                    <div className="flex items-center justify-between mb-4">
-                                                        <div className="flex-1">
-                                                            <div className="flex items-center gap-2">
-                                                                <h4 className="font-medium">{provider.name}</h4>
-                                                                {setting.enabled && (
-                                                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
-                                                                        Enabled
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                            <p className="text-sm text-muted-foreground mt-1">
-                                                                ID: {provider.id}
-                                                            </p>
-                                                            <p className="text-sm text-muted-foreground">
-                                                                API: {provider.api}
-                                                            </p>
-                                                            {provider.doc && (
-                                                                <a 
-                                                                    href={provider.doc} 
-                                                                    target="_blank" 
-                                                                    rel="noopener noreferrer"
-                                                                    className="text-sm text-blue-600 hover:underline inline-block mt-1"
-                                                                >
-                                                                    Documentation →
-                                                                </a>
-                                                            )}
-                                                        </div>
-                                                        <div className="flex items-center gap-2">
-                                                            <label className="flex items-center gap-2 cursor-pointer">
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={Boolean(setting.enabled)}
-                                                                    onChange={(e) => updateProviderSetting(
-                                                                        provider.id, 
-                                                                        setting.apiKey || '', 
-                                                                        e.target.checked
-                                                                    )}
-                                                                    className="rounded"
-                                                                />
-                                                                <span className="text-sm">Enabled</span>
-                                                            </label>
-                                                        </div>
-                                                    </div>
-                                                    
-                                                    <div className="space-y-2">
-                                                        <label className="text-sm font-medium">API Key</label>
-                                                        <Input
-                                                            type="password"
-                                                            value={setting.apiKey}
-                                                            onChange={(e) => updateProviderSetting(
-                                                                provider.id, 
-                                                                e.target.value, 
-                                                                Boolean(setting.enabled)
-                                                            )}
-                                                            placeholder={
-                                                                hasFreeModels ? "Uses 'public' key for free models" : "Enter API key..."
-                                                            }
-                                                            disabled={Boolean(hasFreeModels)}
-                                                        />
-                                                        {hasFreeModels && (
-                                                            <p className="text-xs text-green-600">
-                                                                🎁 Free models available - API key will be set to &apos;public&apos; automatically
-                                                            </p>
-                                                        )}
-                                                        {!hasFreeModels && Boolean(setting.enabled) && !setting.apiKey && (
-                                                            <p className="text-xs text-amber-600">
-                                                                ⚠️ API key required for this provider
-                                                            </p>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                        <ProviderSettings />
                     </TabsContent>
                 </Tabs>
             </div>

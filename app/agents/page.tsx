@@ -2,20 +2,22 @@
 
 import { useState, useEffect } from "react";
 import { ProjectList } from "./_components/project-list";
+import { STORAGE_KEYS } from "@/lib/storage-keys";
 
 export default function AgentsPage() {
     const [selectedProject, setSelectedProject] = useState<string | null>(null);
 
-    // Attempt to restore selection from local storage on load if desired, 
-    // or just let ProjectList handle its list and we start with null or first one.
-    // Let's stick to null or auto-select first if available (logic could be in specific effect).
     useEffect(() => {
-        const saved = localStorage.getItem("agent_projects");
-        if (saved && !selectedProject) {
-            try {
+        try {
+            const saved = localStorage.getItem(STORAGE_KEYS.agentProjects);
+            if (saved) {
                 const list = JSON.parse(saved);
-                if (list.length > 0) setSelectedProject(list[0]);
-            } catch (e) { }
+                if (list.length > 0) {
+                    setSelectedProject(list[0]);
+                }
+            }
+        } catch {
+            console.warn('Failed to load selected project from localStorage');
         }
     }, []);
 

@@ -5,30 +5,32 @@ import { Plus, Folder, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProjectSelector } from "./project-selector";
 import { cn } from "@/lib/utils";
+import { STORAGE_KEYS } from "@/lib/storage-keys";
 
 interface ProjectListProps {
     selectedPath: string | null;
-    onSelectPath: (path: string) => void;
+    onSelectPath: (path: string | null) => void;
 }
 
 export function ProjectList({ selectedPath, onSelectPath }: ProjectListProps) {
     const [projects, setProjects] = useState<string[]>([]);
-    const [selectorOpen, setSelectorOpen] = useState(false);
 
     useEffect(() => {
-        const saved = localStorage.getItem("agent_projects");
-        if (saved) {
-            try {
+        try {
+            const saved = localStorage.getItem(STORAGE_KEYS.agentProjects);
+            if (saved) {
                 setProjects(JSON.parse(saved));
-            } catch (e) {
-                console.error("Failed to parse projects", e);
             }
+        } catch {
+            console.warn('Failed to load projects from localStorage');
         }
     }, []);
 
+    const [selectorOpen, setSelectorOpen] = useState(false);
+
     const saveProjects = (newProjects: string[]) => {
         setProjects(newProjects);
-        localStorage.setItem("agent_projects", JSON.stringify(newProjects));
+        localStorage.setItem(STORAGE_KEYS.agentProjects, JSON.stringify(newProjects));
     };
 
     const handleAddProject = (path: string) => {
