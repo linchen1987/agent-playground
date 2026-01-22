@@ -3,21 +3,21 @@ import { streamText } from 'ai';
 
 export async function POST(req: Request) {
   try {
-    const { model, messages, thinking } = await req.json();
+    const { model, messages, thinking, providerName, apiKey, baseUrl } = await req.json();
 
     console.log('Chat API request:', { model, messageCount: messages?.length, thinking });
 
-    if (!model || !messages) {
-      return new Response(JSON.stringify({ error: 'Model and messages are required' }), {
+    if (!model || !messages || !providerName || !apiKey || !baseUrl) {
+      return new Response(JSON.stringify({ error: 'Model, messages, providerName, apiKey, and baseUrl are required' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       });
     }
 
     const provider = createOpenAICompatible({
-      name: 'opencode',
-      apiKey: 'public',
-      baseURL: 'https://opencode.ai/zen/v1',
+      name: providerName,
+      apiKey: apiKey,
+      baseURL: baseUrl,
     });
 
     // reasoning_effort: none, minimal, low, medium, high, xhigh

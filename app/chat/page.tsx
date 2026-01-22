@@ -11,12 +11,15 @@ import {
 import { Check, ChevronsUpDown, Send, Trash2, Bot, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
 import { getFreeModels, streamFetch, type ModelsResponse, type StreamChunk } from "@/lib/api";
 import { toast } from "sonner";
 import useChatConfig from "@/lib/use-chat-config";
+import useProviderSettings, { STATIC_PROVIDERS } from "@/lib/use-provider-settings";
 
 export default function LLMsPage() {
-    const { selectedModel, setSelectedModel, thinkingSpeed, setThinkingSpeed } = useChatConfig();
+    const { selectedModel, setSelectedModel, selectedProvider, setSelectedProvider, thinkingSpeed, setThinkingSpeed, apiKey, setApiKey, baseUrl, setBaseUrl, providerName, setProviderName } = useChatConfig();
+    const { getProviderSetting, getEnabledProviders } = useProviderSettings();
     const [freeModels, setFreeModels] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
     const [input, setInput] = useState("");
@@ -29,7 +32,7 @@ export default function LLMsPage() {
     };
 
     const handleSendMessage = async () => {
-        if (!input.trim() || !selectedModel || isLoading) return;
+        if (!input.trim() || !selectedModel || !selectedProvider || isLoading) return;
 
         const userMessage = { role: 'user' as const, content: input.trim() };
         setMessages(prev => [...prev, userMessage]);
@@ -40,11 +43,26 @@ export default function LLMsPage() {
             let assistantMessage: { role: 'assistant', content: string, reasoning?: string } = { role: 'assistant', content: '' };
             setMessages(prev => [...prev, assistantMessage]);
 
+            // 获取选中的 provider 配置
+            const providerConfig = STATIC_PROVIDERS.find(p => p.id === selectedProvider);
+            const providerSetting = getProviderSetting(selectedProvider);
+            
+            if (!providerConfig) {
+                toast.error('Provider not found');
+                return;
+            }
+
+            // 如果有免费模型，自动使用 public key
+            const finalApiKey = providerSetting.apiKey || 'public';
+
             await streamFetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     model: selectedModel,
+                    providerName: providerConfig.name,
+                    apiKey: finalApiKey,
+                    baseUrl: providerConfig.api,
                     thinking: thinkingSpeed ? { speed: thinkingSpeed === 'disabled' ? undefined : thinkingSpeed, type: thinkingSpeed === 'disabled' ? 'disabled' : undefined } : undefined,
                     messages: [...messages, userMessage].map(msg => ({
                         role: msg.role,
@@ -131,6 +149,49 @@ export default function LLMsPage() {
                 <div className="max-w-[1200px] space-y-8">
                     <div className="space-y-4">
                         <div className="flex flex-col gap-4 p-6 border rounded-lg bg-card text-card-foreground shadow-sm">
+                            <div className="flex items-center justify-between">
+                                <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                    Provider
+                                </label>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            role="combobox"
+                                            className="w-[300px] justify-between"
+                                            suppressHydrationWarning
+                                        >
+                                            {selectedProvider ? STATIC_PROVIDERS.find(p => p.id === selectedProvider)?.name : "Select a provider..."}
+                                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent className="w-[300px] max-h-[300px] overflow-y-auto">
+                                        {STATIC_PROVIDERS.map((provider) => {
+                                            const setting = getProviderSetting(provider.id);
+                                            const isEnabled = setting.enabled;
+                                            return (
+                                                <DropdownMenuItem
+                                                    key={provider.id}
+                                                    onClick={() => isEnabled && setSelectedProvider(provider.id)}
+                                                    className={cn("cursor-pointer", !isEnabled && "opacity-50")}
+                                                    disabled={!isEnabled}
+                                                >
+                                                    <Check
+                                                        className={cn(
+                                                            "mr-2 h-4 w-4",
+                                                            selectedProvider === provider.id
+                                                                ? "opacity-100"
+                                                                : "opacity-0"
+                                                        )}
+                                                    />
+                                                    {provider.name}
+                                                </DropdownMenuItem>
+                                            );
+                                        })}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            </div>
+
                             <div className="flex items-center justify-between">
                                 <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
                                     Model
