@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Bot, LayoutDashboard, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { Home, Bot, LayoutDashboard, ChevronsLeft, ChevronsRight, MessageCircle, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useSidebar } from "@/components/sidebar-provider";
@@ -21,7 +21,7 @@ export function AppSidebar() {
         {
             name: "Chat",
             href: "/chat",
-            icon: Bot,
+            icon: MessageCircle,
         },
         {
             name: "Models",
@@ -31,7 +31,7 @@ export function AppSidebar() {
         {
             name: "Agents",
             href: "/agents",
-            icon: Bot,
+            icon: Sparkles,
         },
     ];
 
