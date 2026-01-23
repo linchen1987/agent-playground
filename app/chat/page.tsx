@@ -27,15 +27,26 @@ import {
   ChevronDown,
   ChevronRight,
   Check,
+  Play,
+  CheckCircle2,
 } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { vscDarkPlus, vs } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { useTheme } from 'next-themes';
 
 interface Message {
   id: string;
-  role: 'user' | 'assistant' | 'error';
+  role: 'user' | 'assistant' | 'error' | 'tool';
   content: string;
   reasoning?: string;
+  toolCalls?: Array<{
+    id: string;
+    name: string;
+    args: unknown;
+    state?: 'pending' | 'executed';
+  }>;
+  toolCallId?: string; // For tool role
+  name?: string; // For tool role
   timestamp: number;
   rawData?: Array<Record<string, unknown>>;
 }
@@ -49,6 +60,10 @@ export default function ChatPage() {
     setSelectedModelId,
   } = useModelSelection();
 
+  const { theme, systemTheme } = useTheme();
+  const currentTheme = (theme === 'system' ? systemTheme : theme);
+  const isDark = currentTheme === 'dark';
+
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -57,35 +72,12 @@ export default function ChatPage() {
 
   const isReady = Boolean(selectedProviderId && selectedModelId);
 
-  const handleSendMessage = useCallback(async () => {
-    if (!input.trim() || !selectedProviderId || !selectedModelId || isLoading) {
-      return;
-    }
-
-    const userMessage: Message = {
-      id: crypto.randomUUID(),
-      role: 'user',
-      content: input.trim(),
-      timestamp: Date.now(),
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
-    setInput('');
-    setIsLoading(true);
+  const executeStream = useCallback(async (messagesToSend: Message[], newAssistantMessage: Message) => {
+    if (!selectedProviderId || !selectedModelId) return;
 
     try {
       const providerSetting = getProviderSetting(selectedProviderId);
       const apiKey = providerSetting.apiKey || PUBLIC_API_KEY;
-
-      const assistantMessage: Message = {
-        id: crypto.randomUUID(),
-        role: 'assistant',
-        content: '',
-        reasoning: '',
-        timestamp: Date.now(),
-      };
-
-      setMessages((prev) => [...prev, assistantMessage]);
 
       await streamChat(
         {
@@ -96,19 +88,21 @@ export default function ChatPage() {
             type: thinkingSpeed === 'disabled' ? 'disabled' : 'enabled',
             speed: thinkingSpeed === 'disabled' ? undefined : (thinkingSpeed as 'fast' | 'slow'),
           },
-          messages: [
-            ...messages.map((m) => ({
-              role: m.role as 'user' | 'assistant',
+          messages: messagesToSend
+            .filter((m) => m.role !== 'error')
+            .map((m) => ({
+              role: m.role as 'user' | 'assistant' | 'tool',
               content: m.content,
+              toolCalls: m.toolCalls,
+              toolCallId: m.toolCallId,
+              name: m.name,
             })),
-            { role: 'user', content: userMessage.content },
-          ],
         },
         {
           onData: (chunk: StreamChunk) => {
             setMessages((prev) => {
               const last = prev[prev.length - 1];
-              if (last.id !== assistantMessage.id) return prev;
+              if (last.id !== newAssistantMessage.id) return prev;
 
               const updated = { ...last };
 
@@ -118,6 +112,17 @@ export default function ChatPage() {
                   break;
                 case 'reasoning':
                   updated.reasoning = (updated.reasoning || '') + chunk.content;
+                  break;
+                case 'tool-call':
+                  updated.toolCalls = [
+                    ...(updated.toolCalls || []),
+                    {
+                      id: chunk.toolCallId,
+                      name: chunk.toolName,
+                      args: chunk.input,
+                      state: 'pending',
+                    },
+                  ];
                   break;
                 case 'error':
                   updated.role = 'error';
@@ -134,7 +139,7 @@ export default function ChatPage() {
             toast.error(error.message);
             setMessages((prev) => {
               const last = prev[prev.length - 1];
-              if (last.id !== assistantMessage.id) return prev;
+              if (last.id !== newAssistantMessage.id) return prev;
               return [
                 ...prev.slice(0, -1),
                 { ...last, role: 'error', content: error.message },
@@ -152,15 +157,125 @@ export default function ChatPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [
-    input,
-    selectedProviderId,
-    selectedModelId,
-    isLoading,
-    messages,
-    thinkingSpeed,
-    getProviderSetting,
-  ]);
+  }, [selectedProviderId, selectedModelId, thinkingSpeed, getProviderSetting]);
+
+  const handleSendMessage = useCallback(async () => {
+    if (!input.trim() || !selectedProviderId || !selectedModelId || isLoading) {
+      return;
+    }
+
+    const userMessage: Message = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: input.trim(),
+      timestamp: Date.now(),
+    };
+
+    const assistantMessage: Message = {
+      id: crypto.randomUUID(),
+      role: 'assistant',
+      content: '',
+      reasoning: '',
+      timestamp: Date.now(),
+    };
+
+    const newMessages = [...messages, userMessage];
+    setMessages([...newMessages, assistantMessage]);
+    setInput('');
+    setIsLoading(true);
+
+    await executeStream([...newMessages], assistantMessage);
+  }, [input, messages, selectedProviderId, selectedModelId, isLoading, executeStream]);
+
+  const handleExecuteTool = useCallback(async (messageId: string, toolCall: { id: string; name: string; args: unknown }) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/tool', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toolName: toolCall.name, args: toolCall.args }),
+      });
+
+      if (!response.ok) throw new Error('Tool execution failed');
+      const { result } = await response.json();
+
+      // Update the tool call state to executed
+      setMessages((prev) => prev.map(m => {
+        if (m.id === messageId && m.toolCalls) {
+          return {
+            ...m,
+            toolCalls: m.toolCalls.map(tc => tc.id === toolCall.id ? { ...tc, state: 'executed' } : tc)
+          };
+        }
+        return m;
+      }));
+
+      // Add tool result message
+      const toolMessage: Message = {
+        id: crypto.randomUUID(),
+        role: 'tool',
+        content: JSON.stringify(result),
+        toolCallId: toolCall.id,
+        name: toolCall.name,
+        timestamp: Date.now(),
+      };
+
+      const assistantMessage: Message = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: '',
+        reasoning: '',
+        timestamp: Date.now(),
+      };
+
+      // We need the updated messages state, but setMessages is async.
+      // We'll reconstruct the latest state based on what we know.
+      // Actually we should use the functional update pattern or just use the current 'messages' ref if available.
+      // But 'messages' in closure might be stale.
+      // Better to rely on functional update or pass messages around.
+      // Since we just updated state, let's assume we can rebuild it.
+      // Wait, we need to send ALL history including the new tool message.
+      
+      setMessages((prev) => {
+        const updatedPrev = prev.map(m => {
+          if (m.id === messageId && m.toolCalls) {
+             return {
+               ...m,
+               toolCalls: m.toolCalls.map(tc => tc.id === toolCall.id ? { ...tc, state: 'executed' } : tc)
+             } as Message;
+          }
+          return m;
+        });
+        const newHistory = [...updatedPrev, toolMessage];
+        // We need to trigger executeStream with newHistory
+        // But we can't do it inside setMessages.
+        // We'll execute it after.
+        return [...newHistory, assistantMessage];
+      });
+
+      // Getting the fresh state is tricky without a ref or useEffect.
+      // I'll construct the history manually for the API call to avoid race conditions.
+      const updatedMessages = messages.map(m => {
+        if (m.id === messageId && m.toolCalls) {
+          return {
+            ...m,
+            toolCalls: m.toolCalls.map(tc => tc.id === toolCall.id ? { ...tc, state: 'executed' } : tc)
+          } as Message;
+        }
+        return m;
+      });
+      
+      // TEST: Skip adding toolMessage to history sent to API
+      // const newHistory = [...updatedMessages, toolMessage];
+      const newHistory = [...updatedMessages, toolMessage]; 
+      await executeStream(newHistory, assistantMessage);
+
+    } catch (error) {
+      toast.error('Failed to execute tool');
+      console.error(error);
+      setIsLoading(false);
+    }
+  }, [messages, executeStream]);
 
   const handleClearChat = () => {
     setMessages([]);
@@ -292,12 +407,73 @@ export default function ChatPage() {
                           ? 'bg-primary/10 text-foreground'
                           : message.role === 'error'
                           ? 'bg-destructive/10 text-destructive'
+                          : message.role === 'tool'
+                          ? 'bg-muted/30 text-muted-foreground font-mono text-sm'
                           : 'bg-muted/50 text-foreground'
                       }`}>
-                        {message.content || (
-                          <span className="text-muted-foreground/50 italic">
-                            ...
-                          </span>
+                        {message.role === 'tool' ? (
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <CheckCircle2 className="h-4 w-4 text-green-500" />
+                              <span className="font-semibold">Tool Result: {message.name}</span>
+                            </div>
+                            <details className="text-xs">
+                              <summary className="cursor-pointer hover:underline">View Output</summary>
+                              <pre className="mt-2 whitespace-pre-wrap overflow-x-auto">
+                                {message.content.length > 500 ? message.content.slice(0, 500) + '...' : message.content}
+                              </pre>
+                            </details>
+                          </div>
+                        ) : (
+                          message.content || (
+                            <span className="text-muted-foreground/50 italic">
+                              ...
+                            </span>
+                          )
+                        )}
+
+                        {message.toolCalls && message.toolCalls.length > 0 && (
+                          <div className="mt-3 space-y-2 border-t border-border/50 pt-2">
+                            {message.toolCalls.map((tc) => (
+                              <div key={tc.id} className="rounded-md border bg-background/50 p-3">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2 overflow-hidden">
+                                    <span className="text-xs font-medium uppercase text-muted-foreground">
+                                      {tc.name}
+                                    </span>
+                                    <span className="truncate text-xs text-muted-foreground/70 font-mono">
+                                      {(JSON.stringify(tc.args) || '').slice(0, 30)}...
+                                    </span>
+                                  </div>
+                                  {tc.state === 'executed' ? (
+                                    <div className="flex items-center gap-1 text-xs text-green-500">
+                                      <CheckCircle2 className="h-3.5 w-3.5" />
+                                      <span>Ran</span>
+                                    </div>
+                                  ) : (
+                                    <Button
+                                      size="sm"
+                                      variant="secondary"
+                                      className="h-7 px-2 text-xs"
+                                      onClick={() => handleExecuteTool(message.id, tc)}
+                                      disabled={isLoading}
+                                    >
+                                      <Play className="mr-1 h-3 w-3" />
+                                      Run
+                                    </Button>
+                                  )}
+                                </div>
+                                <details className="mt-2">
+                                  <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
+                                    View Arguments
+                                  </summary>
+                                  <pre className="mt-1 overflow-x-auto rounded bg-muted/50 p-2 text-xs font-mono">
+                                    {JSON.stringify(tc.args, null, 2)}
+                                  </pre>
+                                </details>
+                              </div>
+                            ))}
+                          </div>
                         )}
                       </div>
 
@@ -324,13 +500,13 @@ export default function ChatPage() {
                         <div className="max-w-[85%] mt-2 rounded-md border border-muted/50 overflow-hidden">
                           <SyntaxHighlighter
                             language="json"
-                            style={vscDarkPlus}
+                            style={isDark ? vscDarkPlus : vs}
                             customStyle={{
                               margin: 0,
                               padding: '1rem',
                               fontSize: '12px',
                               lineHeight: '1.5',
-                              backgroundColor: 'rgba(0,0,0,0.2)',
+                              backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'transparent',
                               wordBreak: 'break-all',
                               whiteSpace: 'pre-wrap',
                               maxWidth: '100%',

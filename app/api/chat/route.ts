@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { createAnthropic } from '@ai-sdk/anthropic';
-import { streamText } from 'ai';
+import { streamText, tool } from 'ai';
 import { STATIC_CONFIG } from '@/lib/static-config';
+import { toolSchemas } from '@/lib/tools';
 import type { ChatRequest, StreamChunk } from '@/lib/types';
 
 function createProvider(providerId: string, modelId: string, apiKey: string) {
@@ -29,13 +30,82 @@ function createProvider(providerId: string, modelId: string, apiKey: string) {
   });
 }
 
-interface Message {
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-}
+function prepareMessages(messages: ChatRequest['messages']) {
+  return messages.map((m) => {
+    if (m.role === 'tool') {
+      let result = m.content;
 
-function prepareMessages(messages: Message[]) {
-  return messages;
+      return {
+        role: 'tool',
+        content: [
+          {
+            type: 'tool-result',
+            toolCallId: m.toolCallId,
+            toolName: m.name,
+            output: typeof result === 'string'
+              ? { type: 'text', value: result }
+              : { type: 'json', value: result },
+          },
+        ],
+      };
+    }
+
+    if (m.role === 'system') {
+       return {
+         role: 'system',
+         content: m.content
+       }
+    }
+
+    if (m.role === 'assistant') {
+      const contentParts: any[] = [];
+      
+      // Add text parts
+      if (m.content) {
+        if (typeof m.content === 'string') {
+          if (m.content.length > 0) {
+            contentParts.push({ type: 'text', text: m.content });
+          }
+        } else if (Array.isArray(m.content)) {
+          m.content.forEach((c: any) => {
+            if (typeof c === 'string') {
+               if (c.length > 0) {
+                 contentParts.push({ type: 'text', text: c });
+               }
+            } else if (c.type === 'text') {
+              contentParts.push(c);
+            }
+          });
+        }
+      }
+
+      // Add tool call parts
+      if (m.toolCalls && m.toolCalls.length > 0) {
+        m.toolCalls.forEach((tc: any) => {
+          contentParts.push({
+            type: 'tool-call',
+            toolCallId: tc.id,
+            toolName: tc.name,
+            input: tc.args,
+          });
+        });
+      }
+
+      return {
+        role: 'assistant',
+        content: contentParts,
+      };
+    }
+
+    if (m.role === 'user') {
+      return {
+        role: 'user',
+        content: [{ type: 'text', text: m.content }]
+      };
+    }
+
+    return m;
+  }) as any[];
 }
 
 function getProviderThinkingOptions(thinking: ChatRequest['thinking']) {
@@ -65,8 +135,9 @@ function transformStreamPart(part: { type: string; [key: string]: unknown }): St
     case 'tool-call':
       return {
         type: 'tool-call',
-        toolName: part.toolCallName as string,
-        args: part.toolCallArgs,
+        toolName: part.toolName as string,
+        input: (part as any).input, 
+        toolCallId: (part as any).toolCallId,
       };
 
     case 'tool-result':
@@ -74,6 +145,7 @@ function transformStreamPart(part: { type: string; [key: string]: unknown }): St
         type: 'tool-result',
         toolName: part.toolName as string,
         result: part.result,
+        toolCallId: (part as any).toolCallId,
       };
 
     case 'error':
@@ -86,6 +158,10 @@ function transformStreamPart(part: { type: string; [key: string]: unknown }): St
       return { type: 'done' };
 
     default:
+      // Filter out tool-input-* events to avoid sending them to client
+      if (part.type.startsWith('tool-input')) {
+        return null as unknown as StreamChunk; // Skip this chunk
+      }
       return part as Record<string, unknown>;
   }
 }
@@ -125,11 +201,27 @@ export async function POST(req: NextRequest) {
 
     const thinkingOptions = getProviderThinkingOptions(thinking);
 
+    const tools = {
+      search: tool({
+        description: toolSchemas.search.description,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        parameters: toolSchemas.search.parameters as any,
+      } as any),
+      readUrl: tool({
+        description: toolSchemas.readUrl.description,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        parameters: toolSchemas.readUrl.parameters as any,
+      } as any),
+    };
+
+    const preparedMessages = prepareMessages(messages);
+
     const result = await streamText({
       model,
-      messages: prepareMessages(messages),
+      messages: preparedMessages,
       temperature,
       maxOutputTokens,
+      tools,
       providerOptions: {
         openai: thinkingOptions,
       },
@@ -139,7 +231,7 @@ export async function POST(req: NextRequest) {
       async start(controller) {
         try {
           for await (const part of result.fullStream) {
-            const transformed = transformStreamPart(part);
+            const transformed = transformStreamPart(part as any);
             if (transformed) {
               const data = JSON.stringify(transformed);
               controller.enqueue(new TextEncoder().encode(data + '\n'));
@@ -164,7 +256,7 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Chat API error:', error);
+    // console.error('Chat API error:', error);
     return NextResponse.json(
       {
         error: 'Internal server error',

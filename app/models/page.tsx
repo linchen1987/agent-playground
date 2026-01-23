@@ -10,6 +10,7 @@ import { Box, Gift, Settings, RefreshCw, Globe } from "lucide-react";
 import { ProviderSettings } from "@/components/provider-settings";
 import { STATIC_CONFIG, isModelFree } from "@/lib/static-config";
 import type { ModelsResponse } from "@/lib/types";
+import { useTheme } from "next-themes";
 
 const ReactJson = dynamic(() => import('react-json-view'), { ssr: false });
 
@@ -51,10 +52,30 @@ const darkTheme: ThemeObject = {
     base0F: '#f5c2e7',
 };
 
+const lightTheme: ThemeObject = {
+    base00: 'transparent',
+    base01: '#f5f5f5',
+    base02: '#e8e8e8',
+    base03: '#999999',
+    base04: '#555555',
+    base05: '#333333',
+    base06: '#222222',
+    base07: '#111111',
+    base08: '#d73a49',
+    base09: '#d73a49',
+    base0A: '#6f42c1',
+    base0B: '#22863a',
+    base0C: '#005cc5',
+    base0D: '#005cc5',
+    base0E: '#d73a49',
+    base0F: '#005cc5',
+};
+
 type ViewMode = "json" | "raw";
 type FilterType = "all" | "free";
 
 export default function ModelsPage() {
+    const { theme, systemTheme } = useTheme();
     const localModels = STATIC_CONFIG;
     const [remoteModels, setRemoteModels] = useState<ModelsResponse | null>(null);
     const [remoteLoading, setRemoteLoading] = useState(false);
@@ -62,6 +83,8 @@ export default function ModelsPage() {
     const [remoteFilter, setRemoteFilter] = useState<FilterType>("all");
     const [localViewMode, setLocalViewMode] = useState<ViewMode>("json");
     const [remoteViewMode, setRemoteViewMode] = useState<ViewMode>("json");
+
+    const currentTheme = (theme === 'system' ? systemTheme : theme) === 'dark' ? darkTheme : lightTheme;
 
     const fetchRemoteModels = async () => {
         setRemoteLoading(true);
@@ -150,7 +173,7 @@ export default function ModelsPage() {
                                     localViewMode === "json" ? (
                                         <ReactJson
                                             src={localDisplayModels}
-                                            theme={darkTheme}
+                                            theme={currentTheme}
                                             displayDataTypes={false}
                                             collapsed={2}
                                             enableClipboard={true}
@@ -217,7 +240,7 @@ export default function ModelsPage() {
                                     remoteViewMode === "json" ? (
                                         <ReactJson
                                             src={remoteDisplayModels}
-                                            theme={darkTheme}
+                                            theme={currentTheme}
                                             displayDataTypes={false}
                                             collapsed={1}
                                             enableClipboard={true}

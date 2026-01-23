@@ -136,10 +136,18 @@ export interface ChatRequest {
   apiKey: string;
   /** Conversation message history */
   messages: Array<{
-    /** Message role: user, assistant, or system */
-    role: 'user' | 'assistant' | 'system';
+    /** Message role: user, assistant, system, or tool */
+    role: 'user' | 'assistant' | 'system' | 'tool';
     /** Message content */
-    content: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    content: any;
+    /** Tool calls (optional, for assistant role) */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    toolCalls?: any[];
+    /** Tool call ID (optional, for tool role) */
+    toolCallId?: string;
+    /** Tool name (optional, for tool role) */
+    name?: string;
   }>;
   /** Thinking/reasoning configuration (optional) */
   thinking?: {
@@ -160,8 +168,8 @@ export interface ChatRequest {
 export type StreamChunk =
   | { type: 'text'; content: string }
   | { type: 'reasoning'; content: string }
-  | { type: 'tool-call'; toolName: string; args: unknown }
-  | { type: 'tool-result'; toolName: string; result: unknown }
+  | { type: 'tool-call'; toolName: string; input: unknown; toolCallId: string }
+  | { type: 'tool-result'; toolName: string; result: unknown; toolCallId: string }
   | { type: 'error'; message: string }
   | { type: 'done' };
 
